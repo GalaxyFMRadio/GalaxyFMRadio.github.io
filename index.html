@@ -355,23 +355,43 @@
   #discoveries-ticker.no-motion #discoveries-track{ animation:none !important; }
 
   #log-overlay{
-    position:fixed; inset:0; z-index:50; background:rgba(3,4,10,.72); backdrop-filter:blur(3px);
-    display:flex; align-items:center; justify-content:center; padding:24px;
+    position:fixed; inset:0; z-index:50; background:var(--bg); overflow:hidden;
   }
-  #log-panel{
-    width:80%; max-width:760px; max-height:80vh; overflow-y:auto;
-    background:rgba(13,15,36,.66); border:1px solid var(--border);
-    border-radius:20px; padding:30px 26px 34px; position:relative;
-    backdrop-filter:blur(16px);
-    animation:slideup .25s ease-out;
-    color:var(--text); font-family:'IBM Plex Mono', monospace; font-size:14px; line-height:1.85;
+  #log-starfield{ position:absolute; inset:0; z-index:0; }
+  #log-feelings-layer{ position:absolute; inset:0; z-index:1; overflow:hidden; pointer-events:none; }
+  .feeling-word{
+    position:absolute; font-family:'Space Grotesk', sans-serif; font-weight:600;
+    font-size:clamp(16px, 2.6vw, 26px); letter-spacing:.02em; white-space:nowrap;
+    color:hsl(var(--hue) 85% 72%);
+    text-shadow:0 0 16px hsl(var(--hue) 90% 60% / .45);
   }
-  #log-panel p{ margin:0 0 1em; }
+  @keyframes feeling-drift{
+    from{ transform:translate(0,0); }
+    to{ transform:translate(var(--dx), var(--dy)); }
+  }
+  @keyframes feeling-hue{
+    from{ filter:hue-rotate(0deg); }
+    to{ filter:hue-rotate(360deg); }
+  }
   #log-close{
-    position:absolute; top:14px; right:14px; background:none; border:none; cursor:pointer;
-    color:var(--text-dim); font-size:16px; padding:6px;
+    position:absolute; top:18px; right:18px; z-index:3;
+    background:none; border:1px solid var(--border); color:var(--text-dim);
+    width:34px; height:34px; border-radius:50%; cursor:pointer; font-size:14px;
   }
   #log-close:hover{ color:var(--text); }
+  #log-ticker{
+    position:absolute; left:0; right:0; bottom:0; z-index:2;
+    overflow:hidden; border-top:1px solid var(--border);
+    padding:14px 0; background:var(--bg-panel);
+  }
+  #log-ticker .discovery-item{ cursor:default; }
+  #log-ticker-track{
+    display:flex; gap:44px; width:max-content;
+    animation:ticker-scroll var(--ticker-duration,60s) linear infinite;
+  }
+  #log-ticker-track:hover{ animation-play-state:paused; }
+  #log-ticker.no-motion{ overflow-x:auto; }
+  #log-ticker.no-motion #log-ticker-track{ animation:none !important; }
 
 </style>
 </head>
@@ -444,25 +464,11 @@
 </div>
 
 <div id="log-overlay" class="hidden">
-  <div id="log-panel" role="dialog" aria-modal="true" aria-labelledby="log-title">
-    <button id="log-close" aria-label="Close">&#10005;</button>
-    <p class="detail-kicker">Transmission Log</p>
-    <h2 id="log-title" class="detail-title">Captain's Log</h2>
-    <div id="log-text">
-      <p>Welcome to Galaxy FM.</p>
-      <p>This is where I share my DJ mixes.</p>
-      <p>But these aren't traditional DJ sets.</p>
-      <p>I build each mix around a very specific idea. I might hear a particular bassline, drum pattern, sound, lyric, mood, or musical trick in a song &mdash; and then I go searching for other songs that connect to it. Eventually, those connections become an entire set.</p>
-      <p>See if you can figure out the theme.</p>
-      <p>Each set is collected into its own solar system, with each mix represented by a planet. Explore a planet, put on your headphones, and the music will reveal itself.</p>
-      <p>Headphones mandatory.</p>
-      <p>And Galaxy FM is a living thing.</p>
-      <p>Every planet is connected to a virtual hard drive sitting on a laptop in my basement studio. Whenever I make a new mix and save the file, it automatically finds its way into the galaxy.</p>
-      <p>More mixes.</p>
-      <p>More planets.</p>
-      <p>A bigger galaxy.</p>
-      <p>Pick a planet. Press play. See where it takes you.</p>
-    </div>
+  <canvas id="log-starfield" aria-hidden="true"></canvas>
+  <div id="log-feelings-layer" aria-hidden="true"></div>
+  <button id="log-close" aria-label="Close">&#10005;</button>
+  <div id="log-ticker">
+    <div id="log-ticker-track"></div>
   </div>
 </div>
 
@@ -744,6 +750,7 @@
     const rootChildren = await driveListChildren(CONFIG.GALAXY_FOLDER_ID);
     const readmeFile = findReadme(rootChildren);
     const readme = readmeFile ? await driveFetchText(readmeFile.id) : '';
+    const feelingsFile = rootChildren.find(f => /^feelings(\.txt)?$/i.test((f.name || '').trim()));
     const systems = rootChildren.filter(isFolder).map(f => ({
       id: f.id, name: f.name, createdTime: f.createdTime,
       planetsLoaded: false, planets: [], readme: null, readmeFileId: null,
@@ -751,6 +758,7 @@
     }));
     return {
       name: CONFIG.GALAXY_NAME, readme,
+      feelingsFileId: feelingsFile ? feelingsFile.id : null,
       traits: galaxyTraits(CONFIG.GALAXY_FOLDER_ID),
       systems
     };
@@ -978,6 +986,159 @@
     } else {
       requestAnimationFrame(frame);
     }
+  }
+
+  /* Right-to-left hypnotic parallax streak, used only behind the Captain's
+     Log scene (started when it opens, stopped when it closes). */
+  let stopLogStarfield = null;
+  function startLogStarfield(){
+    if(stopLogStarfield) return; // already running
+    const canvas = document.getElementById('log-starfield');
+    const ctx = canvas.getContext('2d');
+    const reduceMotion = !motionEnabled();
+    const LAYERS = [
+      { count: 130, speed: 1.1, size: 1,   alpha: 0.32 },
+      { count: 80,  speed: 2.4, size: 1.6, alpha: 0.6  },
+      { count: 40,  speed: 4.8, size: 2.2, alpha: 0.95 }
+    ];
+    let W, H, stars = [], frameCount = 0, rafId = null;
+
+    function buildStars(){
+      stars = [];
+      LAYERS.forEach(layer => {
+        for(let i = 0; i < layer.count; i++){
+          stars.push({
+            x: Math.random() * W,
+            y: Math.random() * H,
+            speed: layer.speed * (0.85 + Math.random() * 0.3),
+            size: layer.size,
+            alpha: layer.alpha * (0.7 + Math.random() * 0.3),
+            phase: Math.random() * Math.PI * 2
+          });
+        }
+      });
+    }
+    function resize(){
+      W = canvas.width = window.innerWidth;
+      H = canvas.height = window.innerHeight;
+      buildStars();
+    }
+    function drawStatic(){
+      ctx.clearRect(0, 0, W, H);
+      stars.forEach(s => {
+        ctx.fillStyle = 'rgba(255,255,255,' + s.alpha + ')';
+        ctx.beginPath();
+        ctx.arc(s.x, s.y, s.size, 0, Math.PI * 2);
+        ctx.fill();
+      });
+    }
+    function frame(){
+      frameCount++;
+      ctx.clearRect(0, 0, W, H);
+      ctx.lineCap = 'round';
+      for(const s of stars){
+        const trail = s.speed * 2.4;
+        const wobble = Math.sin(frameCount * 0.02 + s.phase) * 1.6;
+        const y = s.y + wobble;
+        ctx.strokeStyle = 'rgba(255,255,255,' + s.alpha + ')';
+        ctx.lineWidth = s.size;
+        ctx.beginPath();
+        ctx.moveTo(s.x + trail, y);
+        ctx.lineTo(s.x, y);
+        ctx.stroke();
+        s.x -= s.speed;
+        if(s.x < -trail - 4){
+          s.x = W + Math.random() * 60;
+          s.y = Math.random() * H;
+        }
+      }
+      rafId = requestAnimationFrame(frame);
+    }
+
+    resize();
+    window.addEventListener('resize', resize);
+    if(reduceMotion) drawStatic();
+    else rafId = requestAnimationFrame(frame);
+
+    stopLogStarfield = function(){
+      if(rafId) cancelAnimationFrame(rafId);
+      window.removeEventListener('resize', resize);
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      stopLogStarfield = null;
+    };
+  }
+
+  /* Floating "feelings" words for the Captain's Log scene, pulled from
+     feelings.txt in the root Galaxy folder — one word per line. Each gets
+     a random gentle drift and a slow color-breathe via hue-rotate. */
+  async function renderLogFeelings(){
+    const layer = $('#log-feelings-layer');
+    layer.innerHTML = '';
+    let words = [];
+    try{
+      if(state.galaxy.demo){
+        words = ['wonder', 'joy', 'drift', 'glow', 'calm', 'home'];
+      } else if(state.galaxy.feelingsFileId){
+        const txt = await driveFetchText(state.galaxy.feelingsFileId);
+        words = txt.split('\n').map(w => w.trim()).filter(Boolean);
+      }
+    }catch(e){ words = []; }
+
+    const animate = motionEnabled();
+    words.forEach(word => {
+      const el = document.createElement('span');
+      el.className = 'feeling-word';
+      const hue = Math.floor(Math.random() * 360);
+      const top = 8 + Math.random() * 68;
+      const left = 6 + Math.random() * 80;
+      el.style.top = top + '%';
+      el.style.left = left + '%';
+      el.style.setProperty('--hue', hue);
+      if(animate){
+        const driftDur = (14 + Math.random() * 14).toFixed(1);
+        const driftDelay = (-Math.random() * driftDur).toFixed(1);
+        const colorDur = (10 + Math.random() * 14).toFixed(1);
+        const colorDelay = (-Math.random() * colorDur).toFixed(1);
+        const dx = Math.round(18 + Math.random() * 22);
+        const dy = Math.round(14 + Math.random() * 18);
+        el.style.setProperty('--dx', dx + 'px');
+        el.style.setProperty('--dy', dy + 'px');
+        el.style.animation =
+          'feeling-drift ' + driftDur + 's ease-in-out ' + driftDelay + 's infinite alternate, ' +
+          'feeling-hue ' + colorDur + 's linear ' + colorDelay + 's infinite';
+      }
+      el.textContent = word;
+      layer.appendChild(el);
+    });
+  }
+
+  /* Mission-statement ticker for the Captain's Log scene — same visual
+     language as the home page's discoveries ticker, one paragraph per item. */
+  const CAPTAINS_LOG_PARAGRAPHS = [
+    'Welcome to Galaxy FM.',
+    'This is where I share my DJ mixes.',
+    'But these aren\u2019t traditional DJ sets.',
+    'I build each mix around a very specific idea. I might hear a particular bassline, drum pattern, sound, lyric, mood, or musical trick in a song \u2014 and then I go searching for other songs that connect to it. Eventually, those connections become an entire set.',
+    'See if you can figure out the theme.',
+    'Each set is collected into its own solar system, with each mix represented by a planet. Explore a planet, put on your headphones, and the music will reveal itself.',
+    'Headphones mandatory.',
+    'And Galaxy FM is a living thing.',
+    'Every planet is connected to a virtual hard drive sitting on a laptop in my basement studio. Whenever I make a new mix and save the file, it automatically finds its way into the galaxy.',
+    'More mixes.',
+    'More planets.',
+    'A bigger galaxy.',
+    'Pick a planet. Press play. See where it takes you.'
+  ];
+  function renderLogTicker(){
+    const wrap = $('#log-ticker');
+    const track = $('#log-ticker-track');
+    const itemHTML = CAPTAINS_LOG_PARAGRAPHS.map(p =>
+      '<span class="discovery-item"><span class="spark">\u2726</span> ' + escapeHTML(p) + '</span>'
+    ).join('');
+    track.innerHTML = itemHTML + itemHTML;
+    const totalChars = CAPTAINS_LOG_PARAGRAPHS.join(' ').length;
+    track.style.setProperty('--ticker-duration', Math.max(55, Math.round(totalChars * 0.12)) + 's');
+    wrap.classList.toggle('no-motion', !motionEnabled());
   }
 
   function atmosOpacity(strength){
@@ -1349,12 +1510,15 @@
   $('#detail-overlay').addEventListener('click', (e) => { if(e.target.id === 'detail-overlay') closeDetail(); });
 
   /* ---- Captain's Log (Star Wars-style crawl) ---- */
-  function openCaptainsLog(){
+  async function openCaptainsLog(){
     $('#log-overlay').classList.remove('hidden');
-    $('#log-panel').scrollTop = 0;
+    startLogStarfield();
+    renderLogTicker();
+    await renderLogFeelings();
   }
   function closeCaptainsLog(){
     $('#log-overlay').classList.add('hidden');
+    if(stopLogStarfield) stopLogStarfield();
   }
   $('#captains-log-btn').addEventListener('click', openCaptainsLog);
   $('#log-close').addEventListener('click', closeCaptainsLog);
