@@ -1,0 +1,1488 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Galaxy FM</title>
+<meta name="description" content="Browse a galaxy of DJ mixes — every solar system is a session, every planet and moon is a track.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#05060f;
+    --bg-panel:#0d0f24;
+    --bg-panel-2:#131634;
+    --text:#e9ecff;
+    --text-dim:#8d92bd;
+    --border:rgba(255,255,255,.09);
+    --accent:#8f7bff;
+    --accent-2:#4fd1c5;
+    --new:#ffcf5c;
+    --radius-lg:20px;
+    --radius-md:12px;
+  }
+  *{ box-sizing:border-box; }
+  html,body{ margin:0; min-height:100%; background:var(--bg); color:var(--text); }
+  body{
+    font-family:'IBM Plex Mono', ui-monospace, monospace;
+    line-height:1.55;
+    overflow-x:hidden;
+    -webkit-font-smoothing:antialiased;
+  }
+  h1,h2,h3,.display{ font-family:'Space Grotesk', sans-serif; margin:0; }
+  p{ margin:0; }
+  button{ font-family:inherit; color:inherit; }
+  a{ color:var(--accent-2); }
+
+  /* ---------- background layers ---------- */
+  #nebula{
+    position:fixed; inset:0; z-index:0; pointer-events:none;
+    background:
+      radial-gradient(ellipse 60% 40% at 20% 15%, hsl(var(--nebula-hue,260) 70% 25% / .35), transparent 60%),
+      radial-gradient(ellipse 50% 35% at 80% 70%, hsl(calc(var(--nebula-hue,260) + 100) 70% 25% / .28), transparent 60%),
+      radial-gradient(ellipse 70% 50% at 50% 100%, hsl(calc(var(--nebula-hue,260) + 200) 60% 20% / .25), transparent 65%);
+  }
+  #starfield{ position:fixed; inset:0; z-index:0; pointer-events:none; display:block; }
+
+  /* ---------- layout shell ---------- */
+  #app{ position:relative; z-index:1; min-height:100vh; display:flex; flex-direction:column; }
+  #topbar{
+    display:flex; align-items:center; justify-content:space-between; gap:8px; flex-wrap:wrap;
+    padding:18px 20px; position:sticky; top:0; z-index:5;
+    background:linear-gradient(to bottom, rgba(5,6,15,.92), rgba(5,6,15,.7) 70%, transparent);
+    backdrop-filter:blur(6px);
+  }
+  #crumb-group{ display:flex; align-items:center; gap:8px; }
+  .crumb{
+    background:none; border:none; cursor:pointer; font-size:14px;
+    letter-spacing:.04em; color:var(--text-dim); padding:6px 4px;
+  }
+  .crumb.current, .crumb:hover{ color:var(--text); }
+  .crumb-sep{ color:var(--text-dim); }
+  .hidden{ display:none !important; }
+
+  #status{
+    margin:0 20px 10px; padding:10px 14px; border-radius:var(--radius-md);
+    background:var(--bg-panel-2); border:1px solid var(--border);
+    font-size:12.5px; color:var(--text-dim); display:flex; gap:10px; align-items:flex-start; justify-content:space-between;
+  }
+  #status button{ background:none; border:none; color:var(--text-dim); cursor:pointer; font-size:14px; line-height:1; }
+
+  main{ padding:10px 20px 60px; max-width:1100px; margin:0 auto; width:100%; }
+
+  /* ---------- galaxy view ---------- */
+  #galaxy-hero{ text-align:center; padding:30px 10px 40px; max-width:640px; margin:0 auto; }
+  #galaxy-title{ font-size:clamp(28px,6vw,44px); letter-spacing:.01em; }
+  #galaxy-readme{ margin-top:14px; color:var(--text-dim); font-size:13.5px; white-space:pre-line; }
+
+  #systems-grid{
+    display:grid; gap:22px;
+    grid-template-columns:repeat(auto-fill, minmax(190px,1fr));
+  }
+  .section-label{
+    font-size:11px; letter-spacing:.1em; text-transform:uppercase; color:var(--text-dim);
+    margin:0 0 14px;
+  }
+  #featured-section{ margin-bottom:34px; }
+  #featured-row{ display:flex; gap:14px; overflow-x:auto; padding-bottom:8px; }
+  .featured-card{
+    flex:0 0 auto; width:112px; display:flex; flex-direction:column; align-items:center; gap:8px;
+    background:var(--bg-panel); border:1px solid var(--border); border-radius:16px;
+    padding:16px 10px 12px; cursor:pointer;
+  }
+  .featured-card:hover, .featured-card:focus-visible{ border-color:var(--accent-2); outline:none; }
+  .featured-card .mini-planet-frame{ display:block; width:52px; height:52px; position:relative; }
+  .featured-card .name{ font-size:11.5px; font-weight:600; text-align:center; line-height:1.25; }
+  .featured-card .meta{ font-size:10px; color:var(--text-dim); text-align:center; }
+  .sun-card{
+    background:var(--bg-panel); border:1px solid var(--border); border-radius:var(--radius-lg);
+    padding:22px 16px 18px; text-align:center; cursor:pointer;
+    transition:transform .2s ease, border-color .2s ease;
+    display:flex; flex-direction:column; align-items:center; gap:10px;
+    position:relative;
+  }
+  .sun-card:hover, .sun-card:focus-visible{ transform:translateY(-3px); border-color:var(--accent); outline:none; }
+  .sun-visual{
+    display:block; width:64px; height:64px; border-radius:50%;
+    background:radial-gradient(circle at 35% 30%, hsl(var(--hue) 90% 75%), hsl(var(--hue) 80% 50%) 55%, hsl(var(--hue) 70% 30%) 100%);
+    box-shadow:0 0 26px hsl(var(--hue) 90% 60% / .55);
+  }
+  .sun-card .name{ font-size:14px; font-weight:600; }
+  .sun-card .meta{ font-size:11px; color:var(--text-dim); }
+  .new-dot{
+    position:absolute; top:12px; right:12px; width:8px; height:8px; border-radius:50%;
+    background:var(--new); box-shadow:0 0 8px var(--new);
+    animation:pulse 1.6s ease-in-out infinite;
+  }
+  @keyframes pulse{ 0%,100%{ opacity:.5; transform:scale(.9); } 50%{ opacity:1; transform:scale(1.15); } }
+
+  /* ---------- system / orbit view ---------- */
+  #system-sun-wrap{ display:flex; flex-direction:column; align-items:center; text-align:center; gap:6px; padding:10px 10px 0; }
+  .sun{ width:80px; height:80px; border-radius:50%; margin-bottom:8px;
+    background:radial-gradient(circle at 35% 30%, hsl(var(--hue) 90% 78%), hsl(var(--hue) 80% 50%) 55%, hsl(var(--hue) 70% 28%) 100%);
+    box-shadow:0 0 46px hsl(var(--hue) 90% 60% / .55); }
+
+  /* Star visual styles — layered on top of .sun / .sun-visual for real
+     graphical variety beyond just hue. --accent2 is a seeded second hue. */
+  .sun.star-speckled, .sun-visual.star-speckled{
+    background:
+      radial-gradient(circle at 22% 24%, rgba(255,255,255,.9) 0 1px, transparent 1.6px),
+      radial-gradient(circle at 66% 16%, rgba(255,255,255,.7) 0 1px, transparent 1.6px),
+      radial-gradient(circle at 42% 68%, rgba(255,255,255,.85) 0 1px, transparent 1.6px),
+      radial-gradient(circle at 80% 58%, rgba(255,255,255,.6) 0 1px, transparent 1.6px),
+      radial-gradient(circle at 26% 84%, rgba(255,255,255,.7) 0 1px, transparent 1.6px),
+      radial-gradient(circle at 58% 42%, rgba(255,255,255,.55) 0 1px, transparent 1.6px),
+      radial-gradient(circle at 35% 30%, hsl(var(--hue) 85% 72%), hsl(var(--hue) 70% 42%) 60%, hsl(var(--hue) 60% 20%) 100%);
+  }
+  .sun.star-marbled, .sun-visual.star-marbled{
+    background:
+      conic-gradient(from 45deg at 32% 42%, hsl(var(--hue) 70% 58%), hsl(var(--accent2) 70% 62%), hsl(var(--hue) 55% 38%), hsl(var(--accent2) 65% 55%), hsl(var(--hue) 70% 58%)),
+      radial-gradient(circle at 35% 30%, transparent 35%, rgba(0,0,0,.4) 100%);
+  }
+  .sun.star-cat-eye, .sun-visual.star-cat-eye{
+    position:relative; overflow:hidden;
+    background:radial-gradient(circle at 35% 30%, hsl(var(--hue) 80% 72%), hsl(var(--hue) 65% 42%) 60%, hsl(var(--hue) 55% 20%) 100%);
+  }
+  .sun.star-cat-eye::after, .sun-visual.star-cat-eye::after{
+    content:''; position:absolute; left:50%; top:10%; bottom:10%; width:20%;
+    transform:translateX(-50%); background:rgba(4,5,13,.88); border-radius:50%;
+    box-shadow:0 0 6px hsl(var(--accent2) 90% 70% / .85);
+  }
+  .sun.star-neon, .sun-visual.star-neon{
+    background:radial-gradient(circle at 35% 30%, hsl(var(--hue) 95% 76%), hsl(var(--hue) 95% 56%) 55%, hsl(var(--hue) 90% 40%) 100%);
+    box-shadow:
+      0 0 14px hsl(var(--hue) 100% 65% / .9),
+      0 0 32px hsl(var(--hue) 100% 60% / .7),
+      0 0 56px hsl(var(--accent2) 100% 60% / .5);
+    animation:neon-pulse 2.4s ease-in-out infinite;
+  }
+  .sun.star-silver, .sun-visual.star-silver{
+    position:relative; overflow:hidden;
+    background:radial-gradient(circle at 35% 30%, #f6f8ff, #b9c2dd 55%, #6c7590 100%) !important;
+    box-shadow:0 0 24px rgba(210,220,255,.6) !important;
+  }
+  .sun.star-silver::after, .sun-visual.star-silver::after{
+    content:''; position:absolute; inset:-40%;
+    background:linear-gradient(115deg, transparent 40%, rgba(255,255,255,.6) 50%, transparent 60%);
+    animation:silver-sheen 3.2s linear infinite;
+  }
+  @keyframes neon-pulse{ 0%,100%{ filter:brightness(1); } 50%{ filter:brightness(1.28); } }
+  @keyframes silver-sheen{ 0%{ transform:translateX(-60%); } 100%{ transform:translateX(60%); } }
+  #system-title{ font-size:26px; }
+  #system-sub{ font-size:11.5px; color:var(--text-dim); text-transform:uppercase; letter-spacing:.08em; }
+  #system-readme{ max-width:520px; color:var(--text-dim); font-size:13px; margin-top:6px; white-space:pre-line; }
+
+  #orbit-field{
+    position:relative; width:100%; height:min(88vw, 560px); margin-top:10px;
+  }
+  .orbit-ring{
+    position:absolute; top:50%; left:50%; border:1px dashed rgba(255,255,255,.08); border-radius:50%;
+    transform:translate(-50%,-50%);
+  }
+  .orbit-rotator{ position:absolute; top:50%; left:50%; width:0; height:0; }
+  .planet-slot{ position:absolute; top:0; left:0; transform:translate(-50%,-50%); }
+  .planet-btn{
+    position:relative; border:none; background:none; cursor:pointer; padding:0;
+    width:var(--size); height:var(--size); border-radius:50%;
+  }
+  .planet-btn:focus-visible{ outline:2px solid var(--accent-2); outline-offset:4px; border-radius:50%; }
+  .planet-body{
+    display:block; width:100%; height:100%; border-radius:50%; position:relative;
+    background:radial-gradient(circle at 35% 30%, hsl(var(--hue) 70% 65%), hsl(var(--hue) 55% 35%) 60%, hsl(var(--hue) 40% 16%) 100%);
+    box-shadow:inset -6px -6px 14px rgba(0,0,0,.55);
+  }
+  .planet-body.surf-gas{ background:repeating-linear-gradient(4deg, hsl(var(--hue) 55% 55%) 0 10%, hsl(var(--accent) 55% 42%) 10% 20%); }
+  .planet-body.surf-ocean{ background:radial-gradient(circle at 35% 30%, hsl(198 65% 62%), hsl(212 60% 28%) 75%); }
+  .planet-body.surf-ice{ background:radial-gradient(circle at 35% 30%, hsl(196 35% 92%), hsl(200 25% 68%) 75%); }
+  .planet-body.surf-volcanic{ background:radial-gradient(circle at 35% 30%, hsl(24 90% 55%), hsl(8 70% 20%) 75%); }
+  .planet-body.surf-crystal{ background:radial-gradient(circle at 35% 30%, hsl(var(--hue) 70% 82%), hsl(var(--accent) 55% 42%) 75%); }
+
+  .atmos-glow{ position:absolute; inset:-22%; border-radius:50%; pointer-events:none;
+    background:radial-gradient(circle, hsl(var(--accent) 70% 65% / var(--atmos-o,0)), transparent 70%); }
+
+  .ring::before{
+    content:''; position:absolute; left:50%; top:50%; pointer-events:none;
+    width:170%; height:60%; border:2px solid hsl(var(--accent) 60% 75% / .55);
+    border-radius:50%; transform:translate(-50%,-50%) rotate(-14deg) scaleY(.4);
+  }
+
+  .life-microbial .planet-body{ box-shadow:inset -6px -6px 14px rgba(0,0,0,.55), 0 0 10px hsl(140 70% 55% / .35); }
+  .life-inhabited .planet-body{ box-shadow:inset -6px -6px 14px rgba(0,0,0,.55), 0 0 16px hsl(140 80% 60% / .55); }
+  .life-advanced .planet-body{ box-shadow:inset -6px -6px 14px rgba(0,0,0,.55), 0 0 20px hsl(46 90% 65% / .65); }
+  .life-inhabited .planet-body::after, .life-advanced .planet-body::after{
+    content:''; position:absolute; inset:0; border-radius:50%;
+    background:radial-gradient(circle at 60% 65%, hsl(46 90% 70% / .5) 0 2px, transparent 3px);
+    animation:blink 2.4s steps(1) infinite;
+  }
+  @keyframes blink{ 0%,45%{ opacity:1; } 46%,54%{ opacity:0; } 55%,100%{ opacity:1; } }
+
+  .is-new .planet-btn::before{
+    content:'\2726 NEW'; position:absolute; top:-22px; left:50%; transform:translateX(-50%);
+    font-size:9px; letter-spacing:.06em; color:var(--new); white-space:nowrap;
+    animation:pulse 1.6s ease-in-out infinite;
+  }
+  .planet-label{
+    display:block; text-align:center; font-size:10.5px; color:var(--text-dim);
+    margin-top:6px; white-space:nowrap; max-width:120px; overflow:hidden; text-overflow:ellipsis;
+  }
+
+  @media (prefers-reduced-motion: reduce){
+    body:not(.motion-forced) .orbit-rotator,
+    body:not(.motion-forced) .planet-slot,
+    body:not(.motion-forced) .new-dot,
+    body:not(.motion-forced) .life-inhabited .planet-body::after,
+    body:not(.motion-forced) .life-advanced .planet-body::after,
+    body:not(.motion-forced) .star-neon,
+    body:not(.motion-forced) .star-silver::after{
+      animation:none !important;
+    }
+  }
+
+  /* ---------- detail overlay ---------- */
+  #detail-overlay{
+    position:fixed; inset:0; z-index:20; background:rgba(3,4,10,.72); backdrop-filter:blur(3px);
+    display:flex; align-items:flex-end; justify-content:center;
+  }
+  #detail-panel{
+    width:100%; max-width:560px; max-height:86vh; overflow-y:auto;
+    background:var(--bg-panel); border:1px solid var(--border);
+    border-radius:20px 20px 0 0; padding:26px 22px 30px; position:relative;
+    animation:slideup .25s ease-out;
+  }
+  @media (min-width:640px){
+    #detail-overlay{ align-items:center; }
+    #detail-panel{ border-radius:20px; }
+  }
+  @keyframes slideup{ from{ transform:translateY(24px); opacity:0; } to{ transform:translateY(0); opacity:1; } }
+  #detail-close{
+    position:absolute; top:14px; right:14px; background:none; border:none; cursor:pointer;
+    color:var(--text-dim); font-size:16px; padding:6px;
+  }
+  #detail-close:hover{ color:var(--text); }
+  .detail-kicker{ font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--text-dim); }
+  .detail-title{ font-size:22px; margin-top:4px; }
+  .detail-badge{
+    display:inline-block; margin-top:8px; margin-right:6px; font-size:10.5px; letter-spacing:.06em;
+    color:var(--new); border:1px solid var(--new); border-radius:20px; padding:2px 9px;
+  }
+  .detail-badge.featured{ color:var(--accent-2); border-color:var(--accent-2); }
+  .detail-trait-row{ display:flex; flex-wrap:wrap; gap:8px; margin-top:14px; }
+  .trait-chip{
+    font-size:11px; color:var(--text-dim); background:var(--bg-panel-2); border:1px solid var(--border);
+    border-radius:20px; padding:4px 10px;
+  }
+  .detail-life{ margin-top:10px; font-size:12.5px; color:var(--accent-2); font-style:italic; }
+  .detail-readme{ margin-top:16px; font-size:13.5px; color:var(--text); white-space:pre-line; }
+  .detail-readme.empty{ color:var(--text-dim); font-style:italic; }
+  .play-btn{
+    display:block; width:100%; margin-top:18px; padding:13px 16px; text-align:center;
+    background:var(--accent); color:#0a0b1a; border:none; border-radius:12px;
+    font-family:inherit; font-size:13.5px; font-weight:600; cursor:pointer;
+  }
+  .play-btn:hover{ filter:brightness(1.08); }
+
+  #mini-player{
+    position:fixed; left:0; right:0; bottom:0; z-index:30;
+    display:flex; flex-direction:column; gap:2px;
+    padding:8px 16px calc(10px + env(safe-area-inset-bottom, 0px));
+    background:rgba(13,15,36,.97); border-top:1px solid var(--border);
+    backdrop-filter:blur(8px);
+  }
+  #mp-seek{
+    -webkit-appearance:none; appearance:none; width:100%; height:14px;
+    background:transparent; cursor:pointer; margin:0;
+  }
+  #mp-seek::-webkit-slider-runnable-track{ height:4px; border-radius:2px; background:rgba(255,255,255,.16); }
+  #mp-seek::-moz-range-track{ height:4px; border-radius:2px; background:rgba(255,255,255,.16); }
+  #mp-seek::-webkit-slider-thumb{
+    -webkit-appearance:none; appearance:none; width:12px; height:12px; border-radius:50%;
+    background:var(--accent); margin-top:-4px; box-shadow:0 0 0 3px rgba(143,123,255,.25);
+  }
+  #mp-seek::-moz-range-thumb{
+    width:12px; height:12px; border-radius:50%; background:var(--accent); border:none;
+    box-shadow:0 0 0 3px rgba(143,123,255,.25);
+  }
+  #mp-controls-row{ display:flex; align-items:center; gap:12px; }
+  #mp-playpause{
+    flex:0 0 auto; width:36px; height:36px; border-radius:50%; border:none;
+    background:var(--accent); color:#0a0b1a; font-size:13px; cursor:pointer;
+  }
+  #mp-info{ flex:1 1 auto; min-width:0; display:flex; flex-direction:column; }
+  #mp-title{ font-size:12.5px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  #mp-context{ font-size:10.5px; color:var(--text-dim); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  #mp-time{ flex:0 0 auto; font-size:10.5px; color:var(--text-dim); font-variant-numeric:tabular-nums; }
+  #mp-close{ flex:0 0 auto; background:none; border:none; color:var(--text-dim); cursor:pointer; font-size:14px; padding:6px; }
+  body.has-mini-player #app{ padding-bottom:76px; }
+  body.has-mini-player #detail-overlay{ padding-bottom:68px; }
+  .demo-note{ margin-top:10px; font-size:11.5px; color:var(--text-dim); }
+
+  #moons-strip{ margin-top:22px; padding-top:18px; border-top:1px solid var(--border); }
+  #moons-strip h3{ font-size:12px; letter-spacing:.06em; text-transform:uppercase; color:var(--text-dim); margin-bottom:12px; }
+  #moons-row{ display:flex; gap:16px; overflow-x:auto; padding-bottom:6px; }
+  .moon-chip{
+    flex:0 0 auto; display:flex; flex-direction:column; align-items:center; gap:6px;
+    background:none; border:none; cursor:pointer; width:64px;
+  }
+  .moon-chip:focus-visible{ outline:2px solid var(--accent-2); outline-offset:3px; border-radius:50%; }
+  .moon-body{
+    display:block; width:38px; height:38px; border-radius:50%; position:relative;
+    background:radial-gradient(circle at 35% 30%, hsl(var(--hue) 60% 68%), hsl(var(--hue) 45% 32%) 70%);
+    box-shadow:inset -3px -3px 7px rgba(0,0,0,.55);
+  }
+  .moon-chip .name{ font-size:9.5px; color:var(--text-dim); text-align:center; line-height:1.2; }
+  .back-link{ background:none; border:none; color:var(--accent-2); cursor:pointer; font-size:12px; margin-bottom:6px; padding:0; }
+
+  #discoveries-ticker{
+    overflow:hidden; border-top:1px solid var(--border); border-bottom:1px solid var(--border);
+    padding:12px 0; margin:26px 0 0; background:var(--bg-panel);
+  }
+  #discoveries-track{
+    display:flex; gap:44px; width:max-content;
+    animation:ticker-scroll var(--ticker-duration,30s) linear infinite;
+  }
+  #discoveries-track:hover{ animation-play-state:paused; }
+  @keyframes ticker-scroll{ from{ transform:translateX(0); } to{ transform:translateX(-50%); } }
+  .discovery-item{
+    display:flex; align-items:center; gap:6px; flex:0 0 auto; white-space:nowrap;
+    background:none; border:none; cursor:pointer; font-family:inherit; font-size:11.5px; color:var(--text-dim);
+    padding:0 22px 0 0;
+  }
+  .discovery-item .spark{ color:var(--new); }
+  .discovery-item b{ color:var(--text); font-weight:600; }
+  .discovery-sub{ color:var(--text-dim); }
+  #discoveries-ticker.no-motion{ overflow-x:auto; }
+  #discoveries-ticker.no-motion #discoveries-track{ animation:none !important; }
+
+  #log-overlay{
+    position:fixed; inset:0; z-index:50; background:rgba(3,4,10,.72); backdrop-filter:blur(3px);
+    display:flex; align-items:center; justify-content:center; padding:24px;
+  }
+  #log-panel{
+    width:80%; max-width:760px; max-height:80vh; overflow-y:auto;
+    background:rgba(13,15,36,.66); border:1px solid var(--border);
+    border-radius:20px; padding:30px 26px 34px; position:relative;
+    backdrop-filter:blur(16px);
+    animation:slideup .25s ease-out;
+    color:var(--text); font-family:'IBM Plex Mono', monospace; font-size:14px; line-height:1.85;
+  }
+  #log-panel p{ margin:0 0 1em; }
+  #log-close{
+    position:absolute; top:14px; right:14px; background:none; border:none; cursor:pointer;
+    color:var(--text-dim); font-size:16px; padding:6px;
+  }
+  #log-close:hover{ color:var(--text); }
+
+</style>
+</head>
+<body>
+
+<div id="nebula"></div>
+<canvas id="starfield" aria-hidden="true"></canvas>
+
+<div id="app">
+  <header id="topbar">
+    <div id="crumb-group">
+      <button id="crumb-galaxy" class="crumb current">&#9737; <span id="crumb-galaxy-name">Galaxy</span></button>
+      <span id="crumb-sep" class="crumb-sep hidden">&rsaquo;</span>
+      <button id="crumb-system" class="crumb hidden"></button>
+    </div>
+    <button id="captains-log-btn" class="crumb">&#9678; Captain's Log</button>
+  </header>
+
+  <div id="status" class="hidden">
+    <span id="status-text"></span>
+    <button id="status-dismiss" aria-label="Dismiss">&#10005;</button>
+  </div>
+
+  <main id="view-galaxy">
+    <section id="galaxy-hero">
+      <h1 id="galaxy-title" class="display">Galaxy</h1>
+      <p id="galaxy-readme"></p>
+    </section>
+    <section id="featured-section" class="hidden">
+      <h2 class="section-label">Priority Transmissions</h2>
+      <div id="featured-row"></div>
+    </section>
+    <div id="systems-grid"></div>
+  </main>
+
+  <main id="view-system" class="hidden">
+    <div id="system-sun-wrap">
+      <div id="system-sun" class="sun"></div>
+      <h2 id="system-title" class="display"></h2>
+      <p id="system-sub"></p>
+      <p id="system-readme"></p>
+    </div>
+    <div id="orbit-field"></div>
+  </main>
+
+  <div id="discoveries-ticker" class="hidden" aria-label="Newly discovered mixes">
+    <div id="discoveries-track"></div>
+  </div>
+</div>
+
+<div id="detail-overlay" class="hidden">
+  <div id="detail-panel" role="dialog" aria-modal="true" aria-labelledby="detail-title">
+    <button id="detail-close" aria-label="Close">&#10005;</button>
+    <div id="detail-body"></div>
+  </div>
+</div>
+
+<div id="mini-player" class="hidden">
+  <input type="range" id="mp-seek" min="0" max="0" value="0" step="0.01" aria-label="Seek">
+  <div id="mp-controls-row">
+    <button id="mp-playpause" aria-label="Play">&#9654;</button>
+    <div id="mp-info">
+      <span id="mp-title"></span>
+      <span id="mp-context"></span>
+    </div>
+    <span id="mp-time">0:00 / 0:00</span>
+    <button id="mp-close" aria-label="Stop">&#10005;</button>
+  </div>
+  <audio id="global-audio" preload="metadata"></audio>
+</div>
+
+<div id="log-overlay" class="hidden">
+  <div id="log-panel" role="dialog" aria-modal="true" aria-labelledby="log-title">
+    <button id="log-close" aria-label="Close">&#10005;</button>
+    <p class="detail-kicker">Transmission Log</p>
+    <h2 id="log-title" class="detail-title">Captain's Log</h2>
+    <div id="log-text">
+      <p>Welcome to Galaxy FM.</p>
+      <p>This is where I share my DJ mixes.</p>
+      <p>But these aren't traditional DJ sets.</p>
+      <p>I build each mix around a very specific idea. I might hear a particular bassline, drum pattern, sound, lyric, mood, or musical trick in a song &mdash; and then I go searching for other songs that connect to it. Eventually, those connections become an entire set.</p>
+      <p>See if you can figure out the theme.</p>
+      <p>Each set is collected into its own solar system, with each mix represented by a planet. Explore a planet, put on your headphones, and the music will reveal itself.</p>
+      <p>Headphones mandatory.</p>
+      <p>And Galaxy FM is a living thing.</p>
+      <p>Every planet is connected to a virtual hard drive sitting on a laptop in my basement studio. Whenever I make a new mix and save the file, it automatically finds its way into the galaxy.</p>
+      <p>More mixes.</p>
+      <p>More planets.</p>
+      <p>A bigger galaxy.</p>
+      <p>Pick a planet. Press play. See where it takes you.</p>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  /* =========================================================
+     CONFIG — fill these in to connect your real Google Drive.
+     ========================================================= */
+  const CONFIG = {
+    API_KEY: 'AIzaSyDnwtu62uppcx4l1iHEYv_-lSjIoOrVCqk',
+    GALAXY_FOLDER_ID: '1Y0hCXo662RyDL_JB2uWKeOQcFj5NYN-S',
+    GALAXY_NAME: 'Galaxy FM',
+    NEW_WITHIN_DAYS: 30,
+    // If the warp starfield or the discoveries ticker ever look frozen,
+    // it's almost always the visitor's browser/OS reporting "reduce motion"
+    // (on Windows: Settings > Accessibility > Visual effects > Animation
+    // effects). Set this to true to always animate regardless of that
+    // setting. Leave false to respect it (the accessibility-friendly default).
+    FORCE_MOTION: true
+  };
+
+  function motionEnabled(){
+    return CONFIG.FORCE_MOTION || !window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  }
+
+  function isConfigured(){
+    return CONFIG.API_KEY && CONFIG.API_KEY.indexOf('YOUR_') !== 0 &&
+           CONFIG.GALAXY_FOLDER_ID && CONFIG.GALAXY_FOLDER_ID.indexOf('YOUR_') !== 0;
+  }
+
+  /* =========================================================
+     Google Drive helpers
+     ========================================================= */
+  const DRIVE_FIELDS = 'files(id,name,mimeType,size,createdTime)';
+  const textCache = new Map();
+
+  async function driveListChildren(folderId){
+    const q = "'" + folderId + "' in parents and trashed = false";
+    const url = 'https://www.googleapis.com/drive/v3/files?q=' + encodeURIComponent(q) +
+      '&fields=' + encodeURIComponent(DRIVE_FIELDS) +
+      '&orderBy=name&pageSize=1000&key=' + CONFIG.API_KEY;
+    const res = await fetch(url);
+    if(!res.ok) throw new Error('Drive list failed: ' + res.status);
+    const data = await res.json();
+    return data.files || [];
+  }
+
+  async function driveFetchText(fileId){
+    if(!fileId) return '';
+    if(textCache.has(fileId)) return textCache.get(fileId);
+    try{
+      const url = 'https://www.googleapis.com/drive/v3/files/' + fileId + '?alt=media&key=' + CONFIG.API_KEY;
+      const res = await fetch(url);
+      if(!res.ok){
+        console.warn('Galaxy FM: readme/text fetch failed for file ' + fileId + ' (HTTP ' + res.status + ').');
+        return '';
+      }
+      const txt = await res.text();
+      textCache.set(fileId, txt);
+      return txt;
+    }catch(e){
+      console.warn('Galaxy FM: readme/text fetch errored for file ' + fileId + ':', e);
+      return '';
+    }
+  }
+
+  function driveStreamUrl(fileId){
+    return 'https://www.googleapis.com/drive/v3/files/' + fileId + '?alt=media&key=' + CONFIG.API_KEY;
+  }
+
+  function isFolder(f){ return f.mimeType === 'application/vnd.google-apps.folder'; }
+  function isAudio(f){ return (f.mimeType || '').indexOf('audio/') === 0; }
+  function isReadme(f){ return /^readme(\.txt)?$/i.test((f.name || '').trim()); }
+  function stripExt(name){ return name.replace(/\.[^/.]+$/, ''); }
+  function findReadme(children){ return children.find(isReadme); }
+
+  function isNew(createdTimeIso){
+    if(!createdTimeIso) return false;
+    const created = new Date(createdTimeIso).getTime();
+    if(isNaN(created)) return false;
+    const days = (Date.now() - created) / 86400000;
+    return days <= CONFIG.NEW_WITHIN_DAYS;
+  }
+
+  /* =========================================================
+     Deterministic "random" traits, seeded from Drive file IDs.
+     Same ID -> same look, forever. That's what keeps a planet's
+     appearance permanent even though it looks randomized.
+     ========================================================= */
+  function hashSeed(str){
+    let h = 1779033703 ^ str.length;
+    for(let i = 0; i < str.length; i++){
+      h = Math.imul(h ^ str.charCodeAt(i), 3432918353);
+      h = (h << 13) | (h >>> 19);
+    }
+    return function(){
+      h = Math.imul(h ^ (h >>> 16), 2246822507);
+      h = Math.imul(h ^ (h >>> 13), 3266489909);
+      h ^= h >>> 16;
+      return h >>> 0;
+    };
+  }
+  function mulberry32(a){
+    return function(){
+      a |= 0; a = (a + 0x6D2B79F5) | 0;
+      let t = Math.imul(a ^ (a >>> 15), 1 | a);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+  function seededRng(id){
+    const seedFn = hashSeed(String(id));
+    return mulberry32(seedFn());
+  }
+  function pick(rng, arr){ return arr[Math.floor(rng() * arr.length)]; }
+  function range(rng, min, max){ return min + rng() * (max - min); }
+  function weightedPick(rng, items){
+    const total = items.reduce((s, it) => s + it[1], 0);
+    let r = rng() * total;
+    for(const it of items){
+      if(r < it[1]) return it[0];
+      r -= it[1];
+    }
+    return items[items.length - 1][0];
+  }
+
+  const SURFACES = [
+    {label:'cratered rock', cls:'surf-rock'},
+    {label:'scorched desert', cls:'surf-rock'},
+    {label:'deep ocean world', cls:'surf-ocean'},
+    {label:'frozen ice world', cls:'surf-ice'},
+    {label:'volcanic wastes', cls:'surf-volcanic'},
+    {label:'banded gas giant', cls:'surf-gas'},
+    {label:'crystalline plains', cls:'surf-crystal'},
+    {label:'toxic marshland', cls:'surf-rock'},
+    {label:'obsidian glass flats', cls:'surf-rock'},
+    {label:'endless canyon rifts', cls:'surf-rock'}
+  ];
+  const ATMOSPHERES = [
+    {label:'no atmosphere', strength:0},
+    {label:'thin hazy atmosphere', strength:1},
+    {label:'thick cloud cover', strength:2},
+    {label:'violent storm bands', strength:2},
+    {label:'toxic green haze', strength:2},
+    {label:'swirling auroras', strength:2},
+    {label:'permanent dust storms', strength:1}
+  ];
+  const MOON_ATMOSPHERES = [
+    {label:'no atmosphere', strength:0},
+    {label:'no atmosphere', strength:0},
+    {label:'thin hazy atmosphere', strength:1},
+    {label:'faint ice mist', strength:1}
+  ];
+  const LIFE_FLAVOR = {
+    barren: [
+      'No signs of life. Just rock and silence.',
+      'Scans show nothing but dust and static.',
+      'A dead world — beautiful, but silent.',
+      'Not even microbes bother with this place.'
+    ],
+    microbial: [
+      'Trace bio-signatures detected. Something is growing in the dark.',
+      'Microbial mats cling to warm vents below the surface.',
+      'Simple life clings on here, patient and slow.',
+      'Faint chemical signs of something almost alive.'
+    ],
+    inhabited: [
+      'Population: reptilian. Cold-blooded, warm bass.',
+      'Little greys confirmed. They don\u2019t speak \u2014 they just nod to the kick drum.',
+      'Bioluminescent nomads track the rhythm across the surface.',
+      'A hive-mind civilization, synced to a single frequency.',
+      'Silicon-based lifeforms. They\u2019ve never heard silence.',
+      'A small colony insists the bassline is a language.'
+    ],
+    advanced: [
+      'A Type II civilization. They stopped making mixes shorter than 60 minutes centuries ago.',
+      'Ascended beings. Allegedly invented the genre.',
+      'A post-scarcity society that spends its time remastering old sets.',
+      'They built a Dyson swarm just to power the sound system.'
+    ]
+  };
+  const STAR_TYPES = {
+    'red dwarf': {hue:8, size:50},
+    'yellow star': {hue:46, size:62},
+    'blue giant': {hue:208, size:80},
+    'white dwarf': {hue:200, size:36},
+    'binary stars': {hue:282, size:68},
+    'violet giant': {hue:275, size:78},
+    'neutron star': {hue:190, size:30}
+  };
+  const STAR_STYLES = ['plain','speckled','marbled','cat-eye','neon','silver'];
+
+  function planetTraits(id){
+    const rng = seededRng('planet:' + id);
+    const surface = pick(rng, SURFACES);
+    const atmosphere = pick(rng, ATMOSPHERES);
+    const life = weightedPick(rng, [['barren',45],['microbial',30],['inhabited',20],['advanced',5]]);
+    const hue = Math.floor(range(rng, 0, 360));
+    return {
+      size: Math.round(range(rng, 46, 108)),
+      surface, atmosphere, life,
+      lifeText: pick(rng, LIFE_FLAVOR[life]),
+      hasRings: rng() < 0.125,
+      hue, accent: (hue + Math.floor(range(rng, 30, 90))) % 360
+    };
+  }
+
+  /* Auto-generated planet name + description, for mixes dropped straight
+     into a solar system folder with no per-mix folder/readme of their own.
+     Seeded from the audio file's ID, so a mix's invented identity is
+     permanent even though nothing about it was hand-authored. */
+  const NAME_ADJ = ['Crimson','Amber','Obsidian','Hollow','Static','Violet','Ashen','Silent','Drifting','Lunar','Frozen','Verdant','Hazy','Molten','Nocturne','Faded','Gilded','Wandering','Echo','Pale','Velvet','Errant','Sable','Glacial'];
+  const NAME_NOUN = ['Hollow','Drift','Bloom','Reach','Expanse','Cradle','Veil','Tide','Basin','Spire','Rift','Wake','Halo','Grove','Shard','Bay','Ridge','Hush','Ember','Passage','Current','Fold','Reef','Horizon'];
+  const NAME_NUMERALS = ['II','III','IV','V','VI','VII','VIII','IX','X'];
+
+  function autoPlanetName(id){
+    const rng = seededRng('name:' + id);
+    let name = pick(rng, NAME_ADJ) + ' ' + pick(rng, NAME_NOUN);
+    if(rng() < 0.3) name += ' ' + pick(rng, NAME_NUMERALS);
+    return name;
+  }
+  function autoPlanetReadme(traits){
+    return 'Survey log: a ' + traits.surface.label + ' world beneath ' + traits.atmosphere.label + '. ' + traits.lifeText;
+  }
+  function moonTraits(id){
+    const rng = seededRng('moon:' + id);
+    const atmosphere = pick(rng, MOON_ATMOSPHERES);
+    const life = weightedPick(rng, [['barren',65],['microbial',25],['inhabited',9],['advanced',1]]);
+    const hue = Math.floor(range(rng, 0, 360));
+    return {
+      size: Math.round(range(rng, 16, 34)),
+      atmosphere, life,
+      lifeText: pick(rng, LIFE_FLAVOR[life]),
+      hasRings: rng() < 0.04,
+      hue, accent: (hue + Math.floor(range(rng, 20, 60))) % 360
+    };
+  }
+  function starTraits(id){
+    const rng = seededRng('star:' + id);
+    const type = weightedPick(rng, [
+      ['red dwarf',24],['yellow star',24],['blue giant',12],['white dwarf',10],
+      ['binary stars',7],['violet giant',12],['neutron star',11]
+    ]);
+    const styleRng = seededRng('starstyle:' + id);
+    const style = weightedPick(styleRng, [
+      ['plain',22],['speckled',16],['marbled',18],['cat-eye',14],['neon',16],['silver',14]
+    ]);
+    const base = STAR_TYPES[type];
+    const accentHue = (base.hue + Math.floor(range(styleRng, 40, 140))) % 360;
+    return Object.assign({type, style, accentHue}, base);
+  }
+  function galaxyTraits(id){
+    const rng = seededRng('galaxy:' + id);
+    return {
+      shape: pick(rng, ['spiral','elliptical','irregular']),
+      nebulaHue: Math.floor(range(rng, 0, 360)),
+      starDensity: pick(rng, ['sparse','moderate','dense'])
+    };
+  }
+  function orbitParams(id){
+    const rng = seededRng('orbit:' + id);
+    return {
+      angle: Math.floor(range(rng, 0, 360)),
+      duration: Math.round(range(rng, 42, 92)),
+      direction: rng() < 0.5 ? 1 : -1
+    };
+  }
+  function starmapPos(id){
+    const rng = seededRng('pos:' + id);
+    return { x: range(rng, 10, 90), y: range(rng, 10, 90) };
+  }
+
+  /* =========================================================
+     Data loading (lazy — only fetches what's on screen)
+     ========================================================= */
+  async function loadGalaxy(){
+    const rootChildren = await driveListChildren(CONFIG.GALAXY_FOLDER_ID);
+    const readmeFile = findReadme(rootChildren);
+    const readme = readmeFile ? await driveFetchText(readmeFile.id) : '';
+    const systems = rootChildren.filter(isFolder).map(f => ({
+      id: f.id, name: f.name, createdTime: f.createdTime,
+      planetsLoaded: false, planets: [], readme: null, readmeFileId: null,
+      traits: null
+    }));
+    return {
+      name: CONFIG.GALAXY_NAME, readme,
+      traits: galaxyTraits(CONFIG.GALAXY_FOLDER_ID),
+      systems
+    };
+  }
+
+  function isFeaturedMarker(f){ return /^featured(\.txt)?$/i.test((f.name || '').trim()); }
+
+  async function loadSystem(system){
+    if(system.planetsLoaded) return system;
+    const children = await driveListChildren(system.id);
+    const readmeFile = findReadme(children);
+    system.readmeFileId = readmeFile ? readmeFile.id : null;
+    const planetFolders = children.filter(isFolder);
+    const planets = [];
+
+    // Manual planets: a folder per mix, with its own readme.txt and
+    // optionally moon subfolders. Full control, more folder upkeep.
+    // Dropping a "featured.txt" in the folder flags it as featured.
+    for(const pf of planetFolders){
+      const pchildren = await driveListChildren(pf.id);
+      const audioFile = pchildren.find(isAudio);
+      if(!audioFile) continue;
+      const preadme = findReadme(pchildren);
+      const isFeatured = pchildren.some(isFeaturedMarker);
+      const moons = pchildren.filter(isFolder).map(mf => ({
+        id: mf.id, name: stripExt(mf.name), createdTime: mf.createdTime,
+        loaded: false, audioFileId: null, readmeFileId: null, readme: null, traits: null
+      }));
+      planets.push({
+        id: pf.id, name: stripExt(pf.name), createdTime: pf.createdTime,
+        audioFileId: audioFile.id,
+        readmeFileId: preadme ? preadme.id : null, readme: null,
+        moons, traits: planetTraits(pf.id),
+        isNewFlag: isNew(pf.createdTime) || moons.some(m => isNew(m.createdTime)),
+        isFeatured
+      });
+    }
+
+    // Auto planets: bare audio files sitting directly in the solar system
+    // folder. No folder or readme needed — the site invents the name,
+    // description, and traits, seeded from the file's own ID so the
+    // result is permanent. These can't have moons (a file can't contain
+    // subfolders), so use a manual folder instead for any mix that needs one.
+    // To feature one, drop a sibling "<same-name>.featured.txt" next to it
+    // (e.g. mix002.mp3 + mix002.featured.txt).
+    const featuredBases = new Set(
+      children.filter(f => /\.featured\.txt$/i.test(f.name))
+        .map(f => f.name.replace(/\.featured\.txt$/i, '').toLowerCase())
+    );
+    children.filter(isAudio).forEach(af => {
+      const traits = planetTraits(af.id);
+      planets.push({
+        id: af.id, name: autoPlanetName(af.id), createdTime: af.createdTime,
+        audioFileId: af.id,
+        readmeFileId: null, readme: autoPlanetReadme(traits),
+        moons: [], traits,
+        isNewFlag: isNew(af.createdTime),
+        isFeatured: featuredBases.has(stripExt(af.name).toLowerCase()),
+        auto: true
+      });
+    });
+
+    system.planets = planets;
+    system.planetsLoaded = true;
+    system.traits = starTraits(system.id);
+    return system;
+  }
+
+  async function loadMoon(moon){
+    if(moon.loaded) return moon;
+    const children = await driveListChildren(moon.id);
+    const audioFile = children.find(isAudio);
+    const mreadme = findReadme(children);
+    moon.audioFileId = audioFile ? audioFile.id : null;
+    moon.readmeFileId = mreadme ? mreadme.id : null;
+    moon.isFeatured = children.some(isFeaturedMarker);
+    moon.traits = moonTraits(moon.id);
+    moon.isNewFlag = isNew(moon.createdTime);
+    moon.loaded = true;
+    return moon;
+  }
+
+  async function ensureReadme(obj){
+    if(obj.readme != null) return obj.readme;
+    obj.readme = obj.readmeFileId ? await driveFetchText(obj.readmeFileId) : '';
+    return obj.readme;
+  }
+
+  /* =========================================================
+     Demo data — shown until CONFIG is filled in, or if the
+     real Drive folder can't be reached.
+     ========================================================= */
+  function buildDemoGalaxy(){
+    const defs = [
+      {id:'demo-plague', name:'Plague', planets:[
+        {name:'Planet Nine', moons:['Aftermix']},
+        {name:'Zero Hour', moons:[]}
+      ]},
+      {id:'demo-nocturne', name:'Nocturne', planets:[
+        {name:'Afterglow', moons:['Comedown']}
+      ]},
+      {id:'demo-halcyon', name:'Halcyon', planets:[
+        {name:'Slow Tide', moons:[]},
+        {name:'Static Bloom', moons:['Reprise','Coda']}
+      ]}
+    ];
+    const systems = defs.map(s => {
+      const planets = s.planets.map((p, i) => {
+        const pid = s.id + '-p' + i;
+        const moons = p.moons.map((mname, mi) => {
+          const mid = pid + '-m' + mi;
+          return {
+            id: mid, name: mname, createdTime: new Date().toISOString(),
+            loaded: true, audioFileId: null, readmeFileId: null,
+            readme: 'Demo description \u2014 connect your Google Drive to show the real notes here.',
+            traits: moonTraits(mid), isNewFlag: mi === 0 && i === 0
+          };
+        });
+        return {
+          id: pid, name: p.name,
+          createdTime: new Date(Date.now() - i * 6 * 86400000).toISOString(),
+          audioFileId: null, readmeFileId: null,
+          readme: 'Demo description \u2014 connect your Google Drive to show the real mix notes here.',
+          moons, traits: planetTraits(pid),
+          isNewFlag: i === 0
+        };
+      });
+      return {
+        id: s.id, name: s.name,
+        readme: 'Demo solar system \u2014 connect Drive to pull the real readme.',
+        planetsLoaded: true, planets, traits: starTraits(s.id)
+      };
+    });
+    return {
+      name: 'Galaxy FM (Demo)',
+      readme: 'This is demo data. Add your Google Drive API key and folder ID in the CONFIG block near the top of this file\u2019s source to broadcast your real mixes.',
+      traits: galaxyTraits('demo'), systems, demo: true
+    };
+  }
+
+  /* =========================================================
+     App state + rendering
+     ========================================================= */
+  const state = { galaxy: null, currentSystem: null, discoveries: [], featured: [] };
+  const $ = (sel) => document.querySelector(sel);
+
+  function showStatus(msg){
+    $('#status-text').textContent = msg;
+    $('#status').classList.remove('hidden');
+  }
+  $('#status-dismiss').addEventListener('click', () => $('#status').classList.add('hidden'));
+
+  function renderStarfield(){
+    const canvas = document.getElementById('starfield');
+    const ctx = canvas.getContext('2d');
+    const reduceMotion = !motionEnabled();
+    if(reduceMotion){
+      console.info('Galaxy FM: motion is disabled (browser/OS "prefers-reduced-motion", or check CONFIG.FORCE_MOTION).');
+    }
+    const STAR_COUNT = 420;
+    const SPEED = 1.8;
+    const FOCAL = 300;
+    let W, H, cx, cy, stars = [];
+
+    function resetStar(s){
+      s.x = (Math.random() * 2 - 1) * W;
+      s.y = (Math.random() * 2 - 1) * H;
+      s.z = W * (0.6 + Math.random() * 0.4);
+    }
+    function buildStars(){
+      stars = [];
+      for(let i = 0; i < STAR_COUNT; i++){
+        const s = {x: 0, y: 0, z: 0};
+        resetStar(s);
+        s.z = Math.random() * W; // stagger initial depth so stars don't all reset in unison
+        stars.push(s);
+      }
+    }
+    function resize(){
+      W = canvas.width = window.innerWidth;
+      H = canvas.height = window.innerHeight;
+      cx = W / 2; cy = H / 2;
+      buildStars();
+    }
+    function drawStatic(){
+      ctx.clearRect(0, 0, W, H);
+      ctx.fillStyle = 'rgba(255,255,255,.7)';
+      stars.forEach(s => {
+        const k = FOCAL / s.z;
+        const px = s.x * k + cx, py = s.y * k + cy;
+        if(px < 0 || px > W || py < 0 || py > H) return;
+        ctx.beginPath();
+        ctx.arc(px, py, 1, 0, Math.PI * 2);
+        ctx.fill();
+      });
+    }
+    function frame(){
+      ctx.clearRect(0, 0, W, H);
+      ctx.lineCap = 'round';
+      for(const s of stars){
+        const oldZ = s.z + SPEED;
+        const k = FOCAL / s.z, k0 = FOCAL / oldZ;
+        const px = s.x * k + cx, py = s.y * k + cy;
+        const px0 = s.x * k0 + cx, py0 = s.y * k0 + cy;
+        const proximity = 1 - s.z / W;
+        const alpha = Math.min(1, 0.12 + proximity * 0.9);
+        ctx.strokeStyle = 'rgba(255,255,255,' + alpha + ')';
+        ctx.lineWidth = Math.max(0.6, proximity * 2.6);
+        ctx.beginPath();
+        ctx.moveTo(px0, py0);
+        ctx.lineTo(px, py);
+        ctx.stroke();
+        s.z -= SPEED;
+        if(s.z <= 1 || px < -60 || px > W + 60 || py < -60 || py > H + 60){
+          resetStar(s);
+        }
+      }
+      requestAnimationFrame(frame);
+    }
+
+    resize();
+    window.addEventListener('resize', resize);
+    if(reduceMotion){
+      drawStatic();
+    } else {
+      requestAnimationFrame(frame);
+    }
+  }
+
+  function atmosOpacity(strength){
+    return strength === 0 ? 0 : strength === 1 ? 0.18 : 0.34;
+  }
+
+  function planetVisualHTML(traits, opts){
+    opts = opts || {};
+    const lifeClass = traits.life !== 'barren' ? ' life-' + traits.life : '';
+    const ringHTML = traits.hasRings ? '<span class="ring"></span>' : '';
+    return (
+      '<span class="planet-body ' + traits.surface.cls + lifeClass + '" ' +
+      'style="--hue:' + traits.hue + '; --accent:' + traits.accent + ';">' +
+      '<span class="atmos-glow" style="--atmos-o:' + atmosOpacity(traits.atmosphere.strength) + '"></span>' +
+      ringHTML +
+      '</span>'
+    );
+  }
+
+  /* ---- galaxy view ---- */
+  function renderGalaxyView(){
+    const g = state.galaxy;
+    document.documentElement.style.setProperty('--nebula-hue', g.traits.nebulaHue);
+    $('#crumb-galaxy-name').textContent = g.name;
+    $('#crumb-sep').classList.add('hidden');
+    $('#crumb-system').classList.add('hidden');
+    $('#crumb-galaxy').classList.add('current');
+
+    $('#galaxy-title').textContent = g.name;
+    $('#galaxy-readme').textContent = g.readme || '';
+
+    const grid = $('#systems-grid');
+    grid.innerHTML = '';
+    g.systems.forEach(sys => {
+      const st = starTraits(sys.id);
+      const card = document.createElement('button');
+      card.className = 'sun-card';
+      card.dataset.systemId = sys.id;
+      card.innerHTML =
+        '<span class="sun-visual star-' + st.style + '" style="--hue:' + st.hue + '; --accent2:' + st.accentHue + ';"></span>' +
+        '<span class="name">' + escapeHTML(sys.name) + '</span>' +
+        '<span class="meta">' + escapeHTML(st.type) + '</span>';
+      card.addEventListener('click', () => enterSystem(sys));
+      grid.appendChild(card);
+    });
+
+    $('#view-galaxy').classList.remove('hidden');
+    $('#view-system').classList.add('hidden');
+  }
+
+  function markSystemCardNew(systemId){
+    const card = document.querySelector('.sun-card[data-system-id="' + systemId + '"]');
+    if(card && !card.querySelector('.new-dot')){
+      const dot = document.createElement('span');
+      dot.className = 'new-dot';
+      dot.title = 'New mixes discovered';
+      card.appendChild(dot);
+    }
+  }
+
+  /* ---- system / orbit view ---- */
+  async function enterSystem(sys){
+    state.currentSystem = sys;
+    $('#view-galaxy').classList.add('hidden');
+    $('#view-system').classList.remove('hidden');
+    $('#crumb-sep').classList.remove('hidden');
+    $('#crumb-system').classList.remove('hidden');
+    $('#crumb-system').textContent = sys.name;
+    $('#crumb-galaxy').classList.remove('current');
+    $('#system-title').textContent = sys.name;
+    $('#system-readme').textContent = '';
+    $('#orbit-field').innerHTML = '<p style="text-align:center;color:var(--text-dim);font-size:12px;">Tuning in\u2026</p>';
+
+    try{
+      await loadSystem(sys);
+    }catch(e){
+      $('#orbit-field').innerHTML = '<p style="text-align:center;color:var(--text-dim);font-size:12px;">Couldn\u2019t reach this solar system. Check your connection or Drive sharing settings.</p>';
+      return;
+    }
+    const st = sys.traits || starTraits(sys.id);
+    const sunEl = document.getElementById('system-sun');
+    sunEl.className = 'sun star-' + st.style;
+    sunEl.style.setProperty('--hue', st.hue);
+    sunEl.style.setProperty('--accent2', st.accentHue);
+    $('#system-sub').textContent = st.type + ' \u00b7 ' + sys.planets.length + ' planet' + (sys.planets.length === 1 ? '' : 's');
+    ensureReadme(sys).then(txt => { $('#system-readme').textContent = txt || ''; });
+
+    renderOrbitField(sys);
+  }
+
+  function renderOrbitField(sys){
+    const field = $('#orbit-field');
+    field.innerHTML = '';
+    if(!sys.planets.length){
+      field.innerHTML = '<p style="text-align:center;color:var(--text-dim);font-size:12px;">No planets discovered here yet.</p>';
+      return;
+    }
+    const isSmall = window.innerWidth < 640;
+    const baseRadius = isSmall ? 46 : 70;
+    const ringGap = isSmall ? 34 : 52;
+
+    sys.planets.forEach((planet, i) => {
+      const radius = baseRadius + i * ringGap;
+      const ring = document.createElement('div');
+      ring.className = 'orbit-ring';
+      ring.style.width = (radius * 2) + 'px';
+      ring.style.height = (radius * 2) + 'px';
+      field.appendChild(ring);
+
+      const op = orbitParams(planet.id);
+      const dir = op.direction === 1 ? 'normal' : 'reverse';
+      const counterDir = op.direction === 1 ? 'reverse' : 'normal';
+      // Negative delay starts the loop partway through, so planets don't all
+      // line up at the same angle when the page loads. Same delay on both
+      // elements keeps the counter-rotation in sync throughout.
+      const startDelay = -((op.angle / 360) * op.duration) + 's';
+
+      const rotator = document.createElement('div');
+      rotator.className = 'orbit-rotator';
+      rotator.style.animation = 'spin ' + op.duration + 's linear infinite';
+      rotator.style.animationDirection = dir;
+      rotator.style.animationDelay = startDelay;
+
+      const slot = document.createElement('div');
+      slot.className = 'planet-slot' + (planet.isNewFlag ? ' is-new' : '');
+      slot.style.left = radius + 'px';
+      slot.style.animation = 'spin ' + op.duration + 's linear infinite';
+      slot.style.animationDirection = counterDir;
+      slot.style.animationDelay = startDelay;
+
+      const btn = document.createElement('button');
+      btn.className = 'planet-btn ' + planet.traits.surface.cls;
+      btn.style.setProperty('--size', planet.traits.size + 'px');
+      btn.style.setProperty('--hue', planet.traits.hue);
+      btn.style.setProperty('--accent', planet.traits.accent);
+      btn.setAttribute('aria-label', planet.name);
+      btn.innerHTML = planetVisualHTML(planet.traits);
+      btn.addEventListener('click', () => openPlanetDetail(planet));
+
+      const label = document.createElement('span');
+      label.className = 'planet-label';
+      label.textContent = planet.name;
+
+      const wrap = document.createElement('div');
+      wrap.style.position = 'relative';
+      wrap.appendChild(btn);
+      wrap.appendChild(label);
+
+      slot.appendChild(wrap);
+      rotator.appendChild(slot);
+      field.appendChild(rotator);
+    });
+  }
+
+  /* Shared orbit keyframes, injected once. Both the outer rotator and the
+     inner planet-slot animate with this same rotate sweep — the slot's
+     animation-direction is set to the opposite of its parent's in JS below,
+     which is what cancels out the rotation and keeps the planet upright. */
+  const orbitKeyframes = document.createElement('style');
+  orbitKeyframes.textContent = '@keyframes spin{from{transform:translate(-50%,-50%) rotate(0deg);}to{transform:translate(-50%,-50%) rotate(360deg);}}';
+  document.head.appendChild(orbitKeyframes);
+
+  /* ---- persistent playback (survives closing the panel / browsing away) ---- */
+  const globalAudio = document.getElementById('global-audio');
+  const seekEl = document.getElementById('mp-seek');
+  let currentTrack = { id: null, title: '', context: '' };
+  let isSeeking = false;
+
+  function formatTime(sec){
+    if(!isFinite(sec) || sec < 0) return '0:00';
+    const m = Math.floor(sec / 60);
+    const s = Math.floor(sec % 60).toString().padStart(2, '0');
+    return m + ':' + s;
+  }
+  function resetSeekUI(){
+    seekEl.min = 0; seekEl.max = 0; seekEl.value = 0;
+    $('#mp-time').textContent = '0:00 / 0:00';
+  }
+  function updateSeekUI(){
+    if(isSeeking) return;
+    const duration = globalAudio.duration;
+    if(isFinite(duration) && duration > 0){
+      seekEl.max = duration;
+      seekEl.value = globalAudio.currentTime;
+    }
+    $('#mp-time').textContent = formatTime(globalAudio.currentTime) + ' / ' + formatTime(globalAudio.duration);
+  }
+
+  function playPauseLabelFor(fileId){
+    return (currentTrack.id === fileId && !globalAudio.paused) ? '\u275A\u275A Pause' : '\u25B6 Play this mix';
+  }
+  function playTrack(fileId, title, context){
+    if(!fileId) return;
+    if(currentTrack.id !== fileId){
+      globalAudio.src = driveStreamUrl(fileId);
+      currentTrack = { id: fileId, title, context };
+      $('#mp-title').textContent = title;
+      $('#mp-context').textContent = context;
+      resetSeekUI();
+    }
+    globalAudio.play();
+    $('#mini-player').classList.remove('hidden');
+    document.body.classList.add('has-mini-player');
+  }
+  function togglePlayPause(){
+    if(globalAudio.paused) globalAudio.play(); else globalAudio.pause();
+  }
+  function stopAndHideMiniPlayer(){
+    globalAudio.pause();
+    globalAudio.removeAttribute('src');
+    globalAudio.load();
+    currentTrack = { id: null, title: '', context: '' };
+    resetSeekUI();
+    $('#mini-player').classList.add('hidden');
+    document.body.classList.remove('has-mini-player');
+  }
+  function syncPlaybackUI(){
+    $('#mp-playpause').textContent = globalAudio.paused ? '\u25B6' : '\u275A\u275A';
+    $('#mp-playpause').setAttribute('aria-label', globalAudio.paused ? 'Play' : 'Pause');
+    const btn = document.getElementById('detail-play-btn');
+    if(btn) btn.textContent = playPauseLabelFor(btn.dataset.fileId);
+  }
+  globalAudio.addEventListener('play', syncPlaybackUI);
+  globalAudio.addEventListener('pause', syncPlaybackUI);
+  globalAudio.addEventListener('loadedmetadata', updateSeekUI);
+  globalAudio.addEventListener('timeupdate', updateSeekUI);
+  seekEl.addEventListener('pointerdown', () => { isSeeking = true; });
+  seekEl.addEventListener('input', () => {
+    $('#mp-time').textContent = formatTime(seekEl.value) + ' / ' + formatTime(globalAudio.duration);
+  });
+  seekEl.addEventListener('change', () => {
+    globalAudio.currentTime = seekEl.value;
+    isSeeking = false;
+  });
+  $('#mp-playpause').addEventListener('click', togglePlayPause);
+  $('#mp-close').addEventListener('click', stopAndHideMiniPlayer);
+
+  /* ---- detail panel ---- */
+  function traitChips(traits, isMoon){
+    const chips = [];
+    if(!isMoon) chips.push(traits.surface.label);
+    chips.push(traits.atmosphere.label);
+    if(traits.hasRings) chips.push('ring system');
+    return chips.map(c => '<span class="trait-chip">' + escapeHTML(c) + '</span>').join('');
+  }
+
+  async function openPlanetDetail(planet){
+    showDetail({
+      kicker: state.currentSystem ? state.currentSystem.name : '',
+      title: planet.name,
+      isNew: planet.isNewFlag,
+      isFeatured: planet.isFeatured,
+      traits: planet.traits,
+      isMoon: false,
+      audioFileId: planet.audioFileId,
+      demo: !!state.galaxy.demo
+    });
+    const txt = await ensureReadme(planet);
+    setDetailReadme(txt);
+    renderMoonsStrip(planet);
+  }
+
+  async function openMoonDetail(moon, parentPlanet){
+    await loadMoon(moon);
+    showDetail({
+      kicker: parentPlanet.name + ' \u00b7 moon',
+      title: moon.name,
+      isNew: moon.isNewFlag,
+      isFeatured: moon.isFeatured,
+      traits: moon.traits,
+      isMoon: true,
+      audioFileId: moon.audioFileId,
+      demo: !!state.galaxy.demo,
+      backTo: parentPlanet
+    });
+    const txt = await ensureReadme(moon);
+    setDetailReadme(txt);
+    $('#moons-strip-slot') && ($('#moons-strip-slot').innerHTML = '');
+  }
+
+  function showDetail(opts){
+    const overlay = $('#detail-overlay');
+    const body = $('#detail-body');
+
+    let backHTML = '';
+    if(opts.backTo){
+      backHTML = '<button class="back-link" id="back-to-planet">\u2039 back to ' + escapeHTML(opts.backTo.name) + '</button><br>';
+    }
+
+    let badgeHTML = '';
+    if(opts.isNew) badgeHTML += '<div class="detail-badge">\u2726 newly discovered</div>';
+    if(opts.isFeatured) badgeHTML += '<div class="detail-badge featured">\u2605 priority transmission</div>';
+    const lifeHTML = opts.traits.life !== 'barren'
+      ? '<p class="detail-life">' + escapeHTML(opts.traits.lifeText) + '</p>'
+      : '<p class="detail-life" style="color:var(--text-dim);">' + escapeHTML(opts.traits.lifeText) + '</p>';
+
+    let playerHTML;
+    if(opts.audioFileId){
+      playerHTML = '<button class="play-btn" id="detail-play-btn" data-file-id="' + opts.audioFileId + '">' +
+        playPauseLabelFor(opts.audioFileId) + '</button>';
+    } else {
+      playerHTML = '<p class="demo-note">' + (opts.demo ? 'Demo mode \u2014 connect Drive to enable playback here.' : 'No audio file found in this folder yet.') + '</p>';
+    }
+
+    body.innerHTML =
+      backHTML +
+      '<p class="detail-kicker">' + escapeHTML(opts.kicker) + '</p>' +
+      '<h2 class="detail-title" id="detail-title">' + escapeHTML(opts.title) + '</h2>' +
+      badgeHTML +
+      '<div class="detail-trait-row">' + traitChips(opts.traits, opts.isMoon) + '</div>' +
+      lifeHTML +
+      '<div class="detail-readme empty" id="detail-readme">Loading description\u2026</div>' +
+      playerHTML +
+      '<div id="moons-strip-slot"></div>';
+
+    if(opts.backTo){
+      $('#back-to-planet').addEventListener('click', () => openPlanetDetail(opts.backTo));
+    }
+    if(opts.audioFileId){
+      document.getElementById('detail-play-btn').addEventListener('click', () => {
+        if(currentTrack.id === opts.audioFileId) togglePlayPause();
+        else playTrack(opts.audioFileId, opts.title, opts.kicker);
+      });
+    }
+
+    overlay.classList.remove('hidden');
+  }
+
+  function setDetailReadme(txt){
+    const el = $('#detail-readme');
+    if(!el) return;
+    if(txt && txt.trim()){
+      el.textContent = txt.trim();
+      el.classList.remove('empty');
+    } else {
+      el.textContent = 'No description written for this one yet.';
+      el.classList.add('empty');
+    }
+  }
+
+  function renderMoonsStrip(planet){
+    const slot = $('#moons-strip-slot');
+    if(!slot) return;
+    if(!planet.moons || !planet.moons.length){ slot.innerHTML = ''; return; }
+    let html = '<div id="moons-strip"><h3>Moons</h3><div id="moons-row">';
+    planet.moons.forEach(moon => {
+      const hue = seededHueForMoonPreview(moon.id);
+      html += '<button class="moon-chip" data-moon-id="' + moon.id + '">' +
+        '<span class="moon-body" style="--hue:' + hue + '"></span>' +
+        '<span class="name">' + escapeHTML(moon.name) + '</span>' +
+        '</button>';
+    });
+    html += '</div></div>';
+    slot.innerHTML = html;
+    slot.querySelectorAll('.moon-chip').forEach(chip => {
+      const moon = planet.moons.find(m => m.id === chip.dataset.moonId);
+      chip.addEventListener('click', () => openMoonDetail(moon, planet));
+    });
+  }
+  function seededHueForMoonPreview(id){
+    const rng = seededRng('moon:' + id);
+    return Math.floor(range(rng, 0, 360));
+  }
+
+  function closeDetail(){
+    $('#detail-overlay').classList.add('hidden');
+  }
+  $('#detail-close').addEventListener('click', closeDetail);
+  $('#detail-overlay').addEventListener('click', (e) => { if(e.target.id === 'detail-overlay') closeDetail(); });
+
+  /* ---- Captain's Log (Star Wars-style crawl) ---- */
+  function openCaptainsLog(){
+    $('#log-overlay').classList.remove('hidden');
+    $('#log-panel').scrollTop = 0;
+  }
+  function closeCaptainsLog(){
+    $('#log-overlay').classList.add('hidden');
+  }
+  $('#captains-log-btn').addEventListener('click', openCaptainsLog);
+  $('#log-close').addEventListener('click', closeCaptainsLog);
+  $('#log-overlay').addEventListener('click', (e) => { if(e.target.id === 'log-overlay') closeCaptainsLog(); });
+
+  document.addEventListener('keydown', (e) => {
+    if(e.key !== 'Escape') return;
+    if(!$('#log-overlay').classList.contains('hidden')) closeCaptainsLog();
+    else if(!$('#detail-overlay').classList.contains('hidden')) closeDetail();
+  });
+
+  /* ---- breadcrumb nav ---- */
+  $('#crumb-galaxy').addEventListener('click', () => {
+    closeDetail();
+    renderGalaxyView();
+  });
+
+  /* =========================================================
+     Background scan: quietly checks each system for newly
+     discovered planets/moons so the galaxy view can flag them
+     without blocking the initial page load.
+     ========================================================= */
+  async function backgroundScanForNew(){
+    for(const sys of state.galaxy.systems){
+      try{
+        await loadSystem(sys);
+        if(sys.planets.some(p => p.isNewFlag)) markSystemCardNew(sys.id);
+        sys.planets.forEach(p => {
+          if(isNew(p.createdTime)){
+            state.discoveries.push({ type:'planet', name:p.name, systemName:sys.name, createdTime:p.createdTime, system:sys, planet:p });
+          }
+          p.moons.forEach(m => {
+            if(isNew(m.createdTime)){
+              state.discoveries.push({ type:'moon', name:m.name, planetName:p.name, systemName:sys.name, createdTime:m.createdTime, system:sys, planet:p, moon:m });
+            }
+          });
+          if(p.isFeatured){
+            state.featured.push({ name:p.name, systemName:sys.name, system:sys, planet:p });
+          }
+        });
+        renderDiscoveriesTicker();
+        renderFeaturedSection();
+      }catch(e){ /* skip quietly */ }
+      await new Promise(r => setTimeout(r, 150));
+    }
+  }
+
+  function renderDiscoveriesTicker(){
+    const wrap = $('#discoveries-ticker');
+    const track = $('#discoveries-track');
+    if(!state.discoveries.length){ wrap.classList.add('hidden'); return; }
+    const sorted = state.discoveries.slice().sort((a, b) => new Date(b.createdTime) - new Date(a.createdTime));
+    const itemHTML = sorted.map((d, i) => {
+      const label = d.type === 'moon'
+        ? escapeHTML(d.name) + ' <span class="discovery-sub">(moon of ' + escapeHTML(d.planetName) + ')</span>'
+        : '<b>' + escapeHTML(d.name) + '</b>';
+      return '<button class="discovery-item" data-idx="' + i + '"><span class="spark">\u2726</span> ' + label +
+        ' <span class="discovery-sub">\u2014 ' + escapeHTML(d.systemName) + '</span></button>';
+    }).join('');
+    track.innerHTML = itemHTML + itemHTML; // duplicated so the loop scrolls seamlessly
+    track.style.setProperty('--ticker-duration', Math.max(18, sorted.length * 6) + 's');
+    wrap.classList.toggle('no-motion', !motionEnabled());
+    wrap.classList.remove('hidden');
+
+    track.querySelectorAll('.discovery-item').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const d = sorted[parseInt(btn.dataset.idx, 10)];
+        if(!d) return;
+        closeDetail();
+        await enterSystem(d.system);
+        if(d.type === 'moon') openMoonDetail(d.moon, d.planet);
+        else openPlanetDetail(d.planet);
+      });
+    });
+  }
+
+  function renderFeaturedSection(){
+    const wrap = $('#featured-section');
+    const row = $('#featured-row');
+    if(!state.featured.length){ wrap.classList.add('hidden'); return; }
+    row.innerHTML = state.featured.map((f, i) => {
+      return '<button class="featured-card" data-idx="' + i + '">' +
+        '<span class="mini-planet-frame">' + planetVisualHTML(f.planet.traits) + '</span>' +
+        '<span class="name">' + escapeHTML(f.name) + '</span>' +
+        '<span class="meta">' + escapeHTML(f.systemName) + '</span>' +
+        '</button>';
+    }).join('');
+    wrap.classList.remove('hidden');
+
+    row.querySelectorAll('.featured-card').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const f = state.featured[parseInt(btn.dataset.idx, 10)];
+        if(!f) return;
+        closeDetail();
+        await enterSystem(f.system);
+        openPlanetDetail(f.planet);
+      });
+    });
+  }
+
+  function escapeHTML(str){
+    const d = document.createElement('div');
+    d.textContent = str == null ? '' : String(str);
+    return d.innerHTML;
+  }
+
+  /* =========================================================
+     Init
+     ========================================================= */
+  async function init(){
+    if(CONFIG.FORCE_MOTION) document.body.classList.add('motion-forced');
+    renderStarfield();
+    try{
+      if(!isConfigured()) throw new Error('not configured');
+      state.galaxy = await loadGalaxy();
+      if(!state.galaxy.systems.length) throw new Error('empty galaxy');
+    }catch(e){
+      state.galaxy = buildDemoGalaxy();
+      showStatus(isConfigured()
+        ? 'Couldn\u2019t load your Drive folder \u2014 showing demo data. Check the API key, folder ID, and sharing settings in CONFIG.'
+        : 'Showing demo data. Add your Google Drive API key & folder ID in the CONFIG block (top of this file\u2019s source) to broadcast your real mixes.');
+    }
+    renderGalaxyView();
+    if(!state.galaxy.demo) setTimeout(backgroundScanForNew, 400);
+  }
+
+  init();
+})();
+</script>
+</body>
+</html>
