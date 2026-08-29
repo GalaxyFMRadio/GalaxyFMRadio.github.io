@@ -345,7 +345,7 @@
   @keyframes ticker-scroll{ from{ transform:translateX(0); } to{ transform:translateX(-50%); } }
   .discovery-item{
     display:flex; align-items:center; gap:6px; flex:0 0 auto; white-space:nowrap;
-    background:none; border:none; cursor:pointer; font-family:inherit; font-size:11.5px; color:var(--text-dim);
+    background:none; border:none; cursor:pointer; font-family:inherit; font-size:13.5px; color:var(--text-dim);
     padding:0 22px 0 0;
   }
   .discovery-item .spark{ color:var(--new); }
@@ -360,14 +360,11 @@
   #log-starfield{ position:absolute; inset:0; z-index:0; }
   #log-feelings-layer{ position:absolute; inset:0; z-index:1; overflow:hidden; pointer-events:none; }
   .feeling-word{
-    position:absolute; font-family:'Space Grotesk', sans-serif; font-weight:600;
-    font-size:clamp(16px, 2.6vw, 26px); letter-spacing:.02em; white-space:nowrap;
+    position:absolute; left:0; top:0; will-change:transform;
+    font-family:'Space Grotesk', sans-serif; font-weight:600;
+    font-size:clamp(44px, 7.4vw, 86px); letter-spacing:.02em; white-space:nowrap;
     color:hsl(var(--hue) 85% 72%);
     text-shadow:0 0 16px hsl(var(--hue) 90% 60% / .45);
-  }
-  @keyframes feeling-drift{
-    from{ transform:translate(0,0); }
-    to{ transform:translate(var(--dx), var(--dy)); }
   }
   @keyframes feeling-hue{
     from{ filter:hue-rotate(0deg); }
@@ -1071,9 +1068,12 @@
   /* Floating "feelings" words for the Captain's Log scene, pulled from
      feelings.txt in the root Galaxy folder — one word per line. Each gets
      a random gentle drift and a slow color-breathe via hue-rotate. */
+  let stopFeelingsBounce = null;
   async function renderLogFeelings(){
     const layer = $('#log-feelings-layer');
     layer.innerHTML = '';
+    if(stopFeelingsBounce) stopFeelingsBounce();
+
     let words = [];
     try{
       if(state.galaxy.demo){
@@ -1083,33 +1083,69 @@
         words = txt.split('\n').map(w => w.trim()).filter(Boolean);
       }
     }catch(e){ words = []; }
+    if(!words.length) return;
 
+    // Pick up to 3 random words for the bounce
+    const picked = words.slice().sort(() => Math.random() - 0.5).slice(0, Math.min(3, words.length));
     const animate = motionEnabled();
-    words.forEach(word => {
+
+    const els = picked.map(word => {
       const el = document.createElement('span');
       el.className = 'feeling-word';
-      const hue = Math.floor(Math.random() * 360);
-      const top = 8 + Math.random() * 68;
-      const left = 6 + Math.random() * 80;
-      el.style.top = top + '%';
-      el.style.left = left + '%';
-      el.style.setProperty('--hue', hue);
+      el.style.setProperty('--hue', Math.floor(Math.random() * 360));
       if(animate){
-        const driftDur = (14 + Math.random() * 14).toFixed(1);
-        const driftDelay = (-Math.random() * driftDur).toFixed(1);
-        const colorDur = (10 + Math.random() * 14).toFixed(1);
+        const colorDur = (7 + Math.random() * 8).toFixed(1);
         const colorDelay = (-Math.random() * colorDur).toFixed(1);
-        const dx = Math.round(18 + Math.random() * 22);
-        const dy = Math.round(14 + Math.random() * 18);
-        el.style.setProperty('--dx', dx + 'px');
-        el.style.setProperty('--dy', dy + 'px');
-        el.style.animation =
-          'feeling-drift ' + driftDur + 's ease-in-out ' + driftDelay + 's infinite alternate, ' +
-          'feeling-hue ' + colorDur + 's linear ' + colorDelay + 's infinite';
+        el.style.animation = 'feeling-hue ' + colorDur + 's linear ' + colorDelay + 's infinite';
       }
       el.textContent = word;
       layer.appendChild(el);
+      return el;
     });
+
+    if(!animate){
+      // Reduced motion: place statically, no bounce loop
+      els.forEach(el => {
+        el.style.transform = 'translate(' + (10 + Math.random() * 70) + '%,' + (10 + Math.random() * 70) + '%)';
+      });
+      return;
+    }
+
+    // Classic DVD-logo bounce: constant velocity, reflects off the edges.
+    const SPEED = 2;
+    const tickerReserve = 90; // keep clear of the bottom ticker
+    const bodies = els.map(el => {
+      const w = el.offsetWidth, h = el.offsetHeight;
+      const angle = Math.random() * Math.PI * 2;
+      return {
+        el, w, h,
+        x: Math.random() * Math.max(1, window.innerWidth - w),
+        y: Math.random() * Math.max(1, window.innerHeight - h - tickerReserve),
+        vx: Math.cos(angle) * SPEED,
+        vy: Math.sin(angle) * SPEED
+      };
+    });
+
+    let rafId = null;
+    function step(){
+      const maxY = window.innerHeight - tickerReserve;
+      bodies.forEach(b => {
+        b.x += b.vx;
+        b.y += b.vy;
+        if(b.x <= 0){ b.x = 0; b.vx = Math.abs(b.vx); }
+        else if(b.x + b.w >= window.innerWidth){ b.x = window.innerWidth - b.w; b.vx = -Math.abs(b.vx); }
+        if(b.y <= 0){ b.y = 0; b.vy = Math.abs(b.vy); }
+        else if(b.y + b.h >= maxY){ b.y = maxY - b.h; b.vy = -Math.abs(b.vy); }
+        b.el.style.transform = 'translate(' + b.x + 'px,' + b.y + 'px)';
+      });
+      rafId = requestAnimationFrame(step);
+    }
+    rafId = requestAnimationFrame(step);
+
+    stopFeelingsBounce = function(){
+      if(rafId) cancelAnimationFrame(rafId);
+      stopFeelingsBounce = null;
+    };
   }
 
   /* Mission-statement ticker for the Captain's Log scene — same visual
@@ -1519,6 +1555,7 @@
   function closeCaptainsLog(){
     $('#log-overlay').classList.add('hidden');
     if(stopLogStarfield) stopLogStarfield();
+    if(stopFeelingsBounce) stopFeelingsBounce();
   }
   $('#captains-log-btn').addEventListener('click', openCaptainsLog);
   $('#log-close').addEventListener('click', closeCaptainsLog);
