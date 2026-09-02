@@ -183,7 +183,7 @@
   }
   .orbit-ring{
     position:absolute; top:50%; left:50%; border:1px dashed rgba(255,255,255,.08); border-radius:50%;
-    transform:translate(-50%,-50%);
+    transform:translate(-50%,-50%); pointer-events:none;
   }
   .orbit-rotator{ position:absolute; top:50%; left:50%; width:0; height:0; }
   .planet-slot{ position:absolute; top:0; left:0; transform:translate(-50%,-50%); }
@@ -362,6 +362,53 @@
   #discoveries-ticker.no-motion{ overflow-x:auto; }
   #discoveries-ticker.no-motion #discoveries-track{ animation:none !important; }
 
+  /* ---------- deck plan (ship map) ---------- */
+  #deck-plan-overlay{
+    position:fixed; inset:0; z-index:45; background:rgba(3,4,10,.72); backdrop-filter:blur(3px);
+    display:flex; align-items:center; justify-content:center; padding:24px;
+  }
+  #deck-plan-panel{
+    width:100%; max-width:420px; max-height:86vh; overflow-y:auto;
+    background:rgba(13,15,36,.9); border:1px solid var(--border);
+    border-radius:20px; padding:28px 24px 32px; position:relative;
+    animation:slideup .25s ease-out;
+  }
+  #deck-plan-close{
+    position:absolute; top:14px; right:14px; background:none; border:none; cursor:pointer;
+    color:var(--text-dim); font-size:16px; padding:6px;
+  }
+  #deck-plan-close:hover{ color:var(--text); }
+  #deck-plan-rooms{
+    position:relative; margin-top:22px; display:flex; flex-direction:column; gap:16px;
+    padding-left:22px;
+  }
+  #deck-plan-rooms::before{
+    content:''; position:absolute; left:5px; top:10px; bottom:10px; width:2px;
+    background:linear-gradient(to bottom, var(--border), var(--accent-2), var(--border));
+    opacity:.5;
+  }
+  .deck-room{
+    position:relative; text-align:left; font-family:inherit; padding:14px 16px;
+    border-radius:14px; border:1px solid var(--border); background:rgba(255,255,255,.02);
+  }
+  .deck-room::before{
+    content:''; position:absolute; left:-22px; top:50%; transform:translateY(-50%);
+    width:9px; height:9px; border-radius:50%; background:var(--border);
+  }
+  .deck-room-name{ font-size:13.5px; font-weight:600; color:var(--text-dim); }
+  .deck-room.dim{ opacity:.55; }
+  .deck-room.lit{
+    cursor:pointer; border-color:var(--accent-2); background:rgba(79,209,197,.08);
+    animation:room-pulse 2.6s ease-in-out infinite;
+  }
+  .deck-room.lit::before{ background:var(--accent-2); box-shadow:0 0 8px var(--accent-2); }
+  .deck-room.lit .deck-room-name{ color:var(--text); }
+  .deck-room.lit:hover{ background:rgba(79,209,197,.14); }
+  @keyframes room-pulse{
+    0%,100%{ box-shadow:0 0 0 rgba(79,209,197,0); }
+    50%{ box-shadow:0 0 18px rgba(79,209,197,.35); }
+  }
+
   #log-overlay{
     position:fixed; inset:0; z-index:50; background:var(--bg); overflow:hidden;
   }
@@ -378,6 +425,12 @@
     from{ filter:hue-rotate(0deg); }
     to{ filter:hue-rotate(360deg); }
   }
+  #log-back-to-deck{
+    position:absolute; top:18px; left:18px; z-index:3;
+    background:none; border:1px solid var(--border); color:var(--text-dim);
+    border-radius:20px; padding:8px 14px; cursor:pointer; font-size:12px; font-family:inherit;
+  }
+  #log-back-to-deck:hover{ color:var(--text); }
   #log-close{
     position:absolute; top:18px; right:18px; z-index:3;
     background:none; border:1px solid var(--border); color:var(--text-dim);
@@ -412,7 +465,7 @@
       <span id="crumb-sep" class="crumb-sep hidden">&rsaquo;</span>
       <button id="crumb-system" class="crumb hidden"></button>
     </div>
-    <button id="captains-log-btn" class="crumb">&#9678; Captain's Log</button>
+    <button id="deck-plan-btn" class="crumb">&#9678; Deck Plan</button>
   </header>
 
   <div id="status" class="hidden">
@@ -473,9 +526,26 @@
   <audio id="global-audio" preload="metadata"></audio>
 </div>
 
+<div id="deck-plan-overlay" class="hidden">
+  <div id="deck-plan-panel" role="dialog" aria-modal="true" aria-labelledby="deck-plan-title">
+    <button id="deck-plan-close" aria-label="Close">&#10005;</button>
+    <p class="detail-kicker">Deck Plan</p>
+    <h2 id="deck-plan-title" class="detail-title">Galaxy FM</h2>
+    <div id="deck-plan-rooms">
+      <button class="deck-room lit" id="room-captains-quarters">
+        <span class="deck-room-name">Captain's Quarters</span>
+      </button>
+      <div class="deck-room dim"><span class="deck-room-name">Bridge</span></div>
+      <div class="deck-room dim"><span class="deck-room-name">Engine Room</span></div>
+      <div class="deck-room dim"><span class="deck-room-name">Cargo Bay</span></div>
+    </div>
+  </div>
+</div>
+
 <div id="log-overlay" class="hidden">
   <canvas id="log-starfield" aria-hidden="true"></canvas>
   <div id="log-feelings-layer" aria-hidden="true"></div>
+  <button id="log-back-to-deck" aria-label="Back to Deck Plan">&#8249; Deck Plan</button>
   <button id="log-close" aria-label="Close">&#10005;</button>
   <div id="log-ticker">
     <div id="log-ticker-track"></div>
@@ -1594,13 +1664,30 @@
     if(stopLogStarfield) stopLogStarfield();
     if(stopFeelingsBounce) stopFeelingsBounce();
   }
-  $('#captains-log-btn').addEventListener('click', openCaptainsLog);
+  function openDeckPlan(){
+    $('#deck-plan-overlay').classList.remove('hidden');
+  }
+  function closeDeckPlan(){
+    $('#deck-plan-overlay').classList.add('hidden');
+  }
+  $('#deck-plan-btn').addEventListener('click', openDeckPlan);
+  $('#deck-plan-close').addEventListener('click', closeDeckPlan);
+  $('#deck-plan-overlay').addEventListener('click', (e) => { if(e.target.id === 'deck-plan-overlay') closeDeckPlan(); });
+  $('#room-captains-quarters').addEventListener('click', () => {
+    closeDeckPlan();
+    openCaptainsLog();
+  });
+  $('#log-back-to-deck').addEventListener('click', () => {
+    closeCaptainsLog();
+    openDeckPlan();
+  });
   $('#log-close').addEventListener('click', closeCaptainsLog);
   $('#log-overlay').addEventListener('click', (e) => { if(e.target.id === 'log-overlay') closeCaptainsLog(); });
 
   document.addEventListener('keydown', (e) => {
     if(e.key !== 'Escape') return;
     if(!$('#log-overlay').classList.contains('hidden')) closeCaptainsLog();
+    else if(!$('#deck-plan-overlay').classList.contains('hidden')) closeDeckPlan();
     else if(!$('#detail-overlay').classList.contains('hidden')) closeDetail();
   });
 
