@@ -348,8 +348,11 @@
     background:none; border:none; cursor:pointer; font-family:inherit; font-size:13.5px; color:var(--text-dim);
     padding:0 22px 0 0;
   }
-  .discovery-item .spark{ color:var(--new); }
-  .discovery-item b{ color:var(--text); font-weight:600; }
+  .discovery-item .spark{
+    display:inline-block; width:5px; height:5px; flex:0 0 auto;
+    background:var(--new); border-radius:1px; transform:rotate(45deg);
+  }
+  .discovery-item b{ color:var(--text); font-weight:600; font-size:inherit; }
   .discovery-sub{ color:var(--text-dim); }
   #discoveries-ticker.no-motion{ overflow-x:auto; }
   #discoveries-ticker.no-motion #discoveries-track{ animation:none !important; }
@@ -362,7 +365,7 @@
   .feeling-word{
     position:absolute; left:0; top:0; will-change:transform;
     font-family:'Space Grotesk', sans-serif; font-weight:600;
-    font-size:clamp(44px, 7.4vw, 86px); letter-spacing:.02em; white-space:nowrap;
+    font-size:clamp(44px, 7.4vw, 86px); line-height:1; letter-spacing:.02em; white-space:nowrap;
     color:hsl(var(--hue) 85% 72%);
     text-shadow:0 0 16px hsl(var(--hue) 90% 60% / .45);
   }
@@ -1085,46 +1088,55 @@
     }catch(e){ words = []; }
     if(!words.length) return;
 
-    // Pick up to 3 random words for the bounce
-    const picked = words.slice().sort(() => Math.random() - 0.5).slice(0, Math.min(3, words.length));
     const animate = motionEnabled();
+    const SPEED = 2;
+    const tickerEl = document.getElementById('log-ticker');
+    const tickerReserve = tickerEl ? tickerEl.offsetHeight : 90; // keep clear of the bottom ticker
+    let bodies = [];
 
-    const els = picked.map(word => {
-      const el = document.createElement('span');
-      el.className = 'feeling-word';
-      el.style.setProperty('--hue', Math.floor(Math.random() * 360));
-      if(animate){
-        const colorDur = (7 + Math.random() * 8).toFixed(1);
-        const colorDelay = (-Math.random() * colorDur).toFixed(1);
-        el.style.animation = 'feeling-hue ' + colorDur + 's linear ' + colorDelay + 's infinite';
-      }
-      el.textContent = word;
-      layer.appendChild(el);
-      return el;
-    });
-
-    if(!animate){
-      // Reduced motion: place statically, no bounce loop
-      els.forEach(el => {
-        el.style.transform = 'translate(' + (10 + Math.random() * 70) + '%,' + (10 + Math.random() * 70) + '%)';
+    // Builds one new trio of words, each pinned to its own fixed height and
+    // moving only left/right — they never touch the top or bottom edges.
+    function spawnTrio(){
+      layer.innerHTML = '';
+      const picked = words.slice().sort(() => Math.random() - 0.5).slice(0, Math.min(3, words.length));
+      const els = picked.map(word => {
+        const el = document.createElement('span');
+        el.className = 'feeling-word';
+        el.style.setProperty('--hue', Math.floor(Math.random() * 360));
+        if(animate){
+          const colorDur = (7 + Math.random() * 8).toFixed(1);
+          const colorDelay = (-Math.random() * colorDur).toFixed(1);
+          el.style.animation = 'feeling-hue ' + colorDur + 's linear ' + colorDelay + 's infinite';
+        }
+        el.textContent = word;
+        layer.appendChild(el);
+        return el;
       });
-      return;
+
+      if(!animate){
+        els.forEach(el => {
+          el.style.transform = 'translate(' + (10 + Math.random() * 70) + '%,' + (10 + Math.random() * 70) + '%)';
+        });
+        return [];
+      }
+
+      // Full DVD-logo bounce: moves diagonally, reflects off all four edges.
+      // Bottom still respects the ticker reserve so words don't overlap it.
+      return els.map(el => {
+        const w = el.offsetWidth, h = el.offsetHeight;
+        const maxY = window.innerHeight - tickerReserve - h;
+        const angle = Math.random() * Math.PI * 2;
+        return {
+          el, w, h,
+          x: Math.random() * Math.max(1, window.innerWidth - w),
+          y: Math.random() * Math.max(1, maxY),
+          vx: Math.cos(angle) * SPEED,
+          vy: Math.sin(angle) * SPEED
+        };
+      });
     }
 
-    // Classic DVD-logo bounce: constant velocity, reflects off the edges.
-    const SPEED = 2;
-    const tickerReserve = 90; // keep clear of the bottom ticker
-    const bodies = els.map(el => {
-      const w = el.offsetWidth, h = el.offsetHeight;
-      const angle = Math.random() * Math.PI * 2;
-      return {
-        el, w, h,
-        x: Math.random() * Math.max(1, window.innerWidth - w),
-        y: Math.random() * Math.max(1, window.innerHeight - h - tickerReserve),
-        vx: Math.cos(angle) * SPEED,
-        vy: Math.sin(angle) * SPEED
-      };
-    });
+    bodies = spawnTrio();
 
     let rafId = null;
     function step(){
@@ -1140,10 +1152,13 @@
       });
       rafId = requestAnimationFrame(step);
     }
-    rafId = requestAnimationFrame(step);
+    if(animate) rafId = requestAnimationFrame(step);
+
+    const intervalId = setInterval(() => { bodies = spawnTrio(); }, 15000);
 
     stopFeelingsBounce = function(){
       if(rafId) cancelAnimationFrame(rafId);
+      clearInterval(intervalId);
       stopFeelingsBounce = null;
     };
   }
@@ -1151,25 +1166,25 @@
   /* Mission-statement ticker for the Captain's Log scene — same visual
      language as the home page's discoveries ticker, one paragraph per item. */
   const CAPTAINS_LOG_PARAGRAPHS = [
-    'Welcome to Galaxy FM.',
-    'This is where I share my DJ mixes.',
-    'But these aren\u2019t traditional DJ sets.',
-    'I build each mix around a very specific idea. I might hear a particular bassline, drum pattern, sound, lyric, mood, or musical trick in a song \u2014 and then I go searching for other songs that connect to it. Eventually, those connections become an entire set.',
-    'See if you can figure out the theme.',
-    'Each set is collected into its own solar system, with each mix represented by a planet. Explore a planet, put on your headphones, and the music will reveal itself.',
-    'Headphones mandatory.',
-    'And Galaxy FM is a living thing.',
-    'Every planet is connected to a virtual hard drive sitting on a laptop in my basement studio. Whenever I make a new mix and save the file, it automatically finds its way into the galaxy.',
-    'More mixes.',
-    'More planets.',
-    'A bigger galaxy.',
-    'Pick a planet. Press play. See where it takes you.'
+    'Somewhere past the noise, a signal begins.',
+    'This isn\u2019t a DJ set. It\u2019s a frequency.',
+    'Every mix starts as a single thread \u2014 a bassline, a lyric, a shape hidden in the sound \u2014 pulled until it becomes a world of its own.',
+    'The thread is still in there. See if you can find it.',
+    'Each world becomes a solar system. Each mix, a planet turning slowly in the dark.',
+    'Put on headphones. Let gravity do the rest.',
+    'This galaxy breathes.',
+    'New transmissions drift in quietly, from a small room somewhere on Earth, and settle into orbit among the others.',
+    'More worlds are always forming.',
+    'More orbits. More light.',
+    'Pick a planet.',
+    'Press play.',
+    'See where it takes you.'
   ];
   function renderLogTicker(){
     const wrap = $('#log-ticker');
     const track = $('#log-ticker-track');
     const itemHTML = CAPTAINS_LOG_PARAGRAPHS.map(p =>
-      '<span class="discovery-item"><span class="spark">\u2726</span> ' + escapeHTML(p) + '</span>'
+      '<span class="discovery-item"><span class="spark"></span> ' + escapeHTML(p) + '</span>'
     ).join('');
     track.innerHTML = itemHTML + itemHTML;
     const totalChars = CAPTAINS_LOG_PARAGRAPHS.join(' ').length;
@@ -1612,7 +1627,7 @@
       const label = d.type === 'moon'
         ? escapeHTML(d.name) + ' <span class="discovery-sub">(moon of ' + escapeHTML(d.planetName) + ')</span>'
         : '<b>' + escapeHTML(d.name) + '</b>';
-      return '<button class="discovery-item" data-idx="' + i + '"><span class="spark">\u2726</span> ' + label +
+      return '<button class="discovery-item" data-idx="' + i + '"><span class="spark"></span> ' + label +
         ' <span class="discovery-sub">\u2014 ' + escapeHTML(d.systemName) + '</span></button>';
     }).join('');
     track.innerHTML = itemHTML + itemHTML; // duplicated so the loop scrolls seamlessly
