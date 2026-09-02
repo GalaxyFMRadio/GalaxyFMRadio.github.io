@@ -85,6 +85,11 @@
     margin:0 0 14px;
   }
   #featured-section{ margin-bottom:34px; }
+  #captain-message-section{ margin-bottom:34px; }
+  #captain-message-box{
+    background:var(--bg-panel); border:1px solid var(--border); border-radius:16px;
+    padding:18px 20px; color:var(--text); font-size:13.5px; line-height:1.75; white-space:pre-line;
+  }
   #featured-row{ display:flex; gap:14px; overflow-x:auto; padding-bottom:8px; }
   .featured-card{
     flex:0 0 auto; width:112px; display:flex; flex-direction:column; align-items:center; gap:8px;
@@ -420,10 +425,15 @@
       <h1 id="galaxy-title" class="display">Galaxy</h1>
       <p id="galaxy-readme"></p>
     </section>
+    <section id="captain-message-section" class="hidden">
+      <h2 class="section-label">This Is Your Captain Speaking</h2>
+      <div id="captain-message-box"></div>
+    </section>
     <section id="featured-section" class="hidden">
       <h2 class="section-label">Priority Transmissions</h2>
       <div id="featured-row"></div>
     </section>
+    <h2 class="section-label">Discovered Systems</h2>
     <div id="systems-grid"></div>
   </main>
 
@@ -751,6 +761,8 @@
     const readmeFile = findReadme(rootChildren);
     const readme = readmeFile ? await driveFetchText(readmeFile.id) : '';
     const feelingsFile = rootChildren.find(f => /^feelings(\.txt)?$/i.test((f.name || '').trim()));
+    const captainFile = rootChildren.find(f => /^captain(\.txt)?$/i.test((f.name || '').trim()));
+    const captainMessage = captainFile ? await driveFetchText(captainFile.id) : '';
     const systems = rootChildren.filter(isFolder).map(f => ({
       id: f.id, name: f.name, createdTime: f.createdTime,
       planetsLoaded: false, planets: [], readme: null, readmeFileId: null,
@@ -758,6 +770,7 @@
     }));
     return {
       name: CONFIG.GALAXY_NAME, readme,
+      captainMessage,
       feelingsFileId: feelingsFile ? feelingsFile.id : null,
       traits: galaxyTraits(CONFIG.GALAXY_FOLDER_ID),
       systems
@@ -895,6 +908,7 @@
     return {
       name: 'Galaxy FM (Demo)',
       readme: 'This is demo data. Add your Google Drive API key and folder ID in the CONFIG block near the top of this file\u2019s source to broadcast your real mixes.',
+      captainMessage: 'This is a demo message. Connect your Google Drive and add a Captain.txt file to the root of your Galaxy folder to broadcast a real one here.',
       traits: galaxyTraits('demo'), systems, demo: true
     };
   }
@@ -1220,6 +1234,14 @@
 
     $('#galaxy-title').textContent = g.name;
     $('#galaxy-readme').textContent = g.readme || '';
+
+    const msgSection = $('#captain-message-section');
+    if(g.captainMessage && g.captainMessage.trim()){
+      $('#captain-message-box').textContent = g.captainMessage.trim();
+      msgSection.classList.remove('hidden');
+    } else {
+      msgSection.classList.add('hidden');
+    }
 
     const grid = $('#systems-grid');
     grid.innerHTML = '';
