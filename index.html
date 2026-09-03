@@ -455,6 +455,7 @@
   #engine-overlay{
     position:fixed; inset:0; z-index:50; background:#08060a; overflow:hidden;
   }
+  #engine-starfield{ position:absolute; inset:0; z-index:0; }
   #engine-overlay.shake{ animation:engine-shake .4s ease-in-out; }
   @keyframes engine-shake{
     0%,100%{ transform:translate(0,0); }
@@ -664,6 +665,7 @@
 </div>
 
 <div id="engine-overlay" class="hidden">
+  <canvas id="engine-starfield" aria-hidden="true"></canvas>
   <div id="engine-flash"></div>
   <div id="engine-sparks" aria-hidden="true"></div>
   <button id="engine-back-to-deck" aria-label="Back to Deck Plan">&#8249; Deck Plan</button>
@@ -1202,6 +1204,100 @@
     } else {
       requestAnimationFrame(frame);
     }
+  }
+
+  /* Same "warp toward camera" starfield as the homepage, but bigger/faster
+     stars and centered on the reactor core instead of the viewport. */
+  let stopEngineStarfield = null;
+  function startEngineStarfield(){
+    if(stopEngineStarfield) return; // already running
+    const canvas = document.getElementById('engine-starfield');
+    const ctx = canvas.getContext('2d');
+    const reduceMotion = !motionEnabled();
+    const STAR_COUNT = 420;
+    const SPEED = 2.6;
+    const FOCAL = 300;
+    let W, H, cx, cy, stars = [], rafId = null;
+
+    function resetStar(s){
+      s.x = (Math.random() * 2 - 1) * W;
+      s.y = (Math.random() * 2 - 1) * H;
+      s.z = 1 + Math.random() * 3; // reappear close, then recede
+    }
+    function buildStars(){
+      stars = [];
+      for(let i = 0; i < STAR_COUNT; i++){
+        const s = {x: 0, y: 0, z: 0};
+        s.x = (Math.random() * 2 - 1) * W;
+        s.y = (Math.random() * 2 - 1) * H;
+        s.z = 1 + Math.random() * (W - 1); // staggered distances so it doesn't start in a single wave
+        stars.push(s);
+      }
+    }
+    function updateCenter(){
+      const core = document.getElementById('reactor-core');
+      if(core){
+        const r = core.getBoundingClientRect();
+        cx = r.left + r.width / 2;
+        cy = r.top + r.height / 2;
+      } else {
+        cx = W / 2; cy = H / 2;
+      }
+    }
+    function resize(){
+      W = canvas.width = window.innerWidth;
+      H = canvas.height = window.innerHeight;
+      updateCenter();
+      buildStars();
+    }
+    function drawStatic(){
+      ctx.clearRect(0, 0, W, H);
+      ctx.fillStyle = 'rgba(255,255,255,.75)';
+      stars.forEach(s => {
+        const k = FOCAL / s.z;
+        const px = s.x * k + cx, py = s.y * k + cy;
+        if(px < 0 || px > W || py < 0 || py > H) return;
+        ctx.beginPath();
+        ctx.arc(px, py, 1.6, 0, Math.PI * 2);
+        ctx.fill();
+      });
+    }
+    function frame(){
+      updateCenter();
+      ctx.clearRect(0, 0, W, H);
+      ctx.lineCap = 'round';
+      for(const s of stars){
+        const oldZ = Math.max(1, s.z - SPEED); // previous (nearer) position, for the trail
+        const k = FOCAL / s.z, k0 = FOCAL / oldZ;
+        const px = s.x * k + cx, py = s.y * k + cy;
+        const px0 = s.x * k0 + cx, py0 = s.y * k0 + cy;
+        const proximity = 1 - Math.min(1, s.z / W);
+        const alpha = Math.min(1, 0.14 + proximity * 0.9);
+        ctx.strokeStyle = 'rgba(255,255,255,' + alpha + ')';
+        ctx.lineWidth = Math.max(1, proximity * 4);
+        ctx.beginPath();
+        ctx.moveTo(px0, py0);
+        ctx.lineTo(px, py);
+        ctx.stroke();
+        s.z += SPEED; // receding into the distance, toward the vanishing point
+        if(s.z >= W){
+          resetStar(s);
+        }
+      }
+      rafId = requestAnimationFrame(frame);
+    }
+
+    resize();
+    window.addEventListener('resize', resize);
+    if(reduceMotion) drawStatic();
+    else rafId = requestAnimationFrame(frame);
+
+    stopEngineStarfield = function(){
+      if(rafId) cancelAnimationFrame(rafId);
+      window.removeEventListener('resize', resize);
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      stopEngineStarfield = null;
+    };
   }
 
   /* Right-to-left hypnotic parallax streak, used only behind the Captain's
@@ -1824,9 +1920,11 @@
     $('#reactor-core').classList.toggle('running', !globalAudio.paused);
     $('#engine-readout').textContent = '';
     $('#engine-readout').classList.remove('lit');
+    startEngineStarfield();
   }
   function closeEngineRoom(){
     $('#engine-overlay').classList.add('hidden');
+    if(stopEngineStarfield) stopEngineStarfield();
   }
   function spawnSparks(){
     const layer = $('#engine-sparks');
