@@ -451,6 +451,115 @@
   #log-ticker.no-motion{ overflow-x:auto; }
   #log-ticker.no-motion #log-ticker-track{ animation:none !important; }
 
+  /* ---------- engine room ---------- */
+  #engine-overlay{
+    position:fixed; inset:0; z-index:50; background:#08060a; overflow:hidden;
+  }
+  #engine-overlay.shake{ animation:engine-shake .4s ease-in-out; }
+  @keyframes engine-shake{
+    0%,100%{ transform:translate(0,0); }
+    20%{ transform:translate(-6px,4px); }
+    40%{ transform:translate(6px,-5px); }
+    60%{ transform:translate(-5px,-3px); }
+    80%{ transform:translate(5px,4px); }
+  }
+  #engine-flash{
+    position:absolute; inset:0; z-index:5; background:#fff; opacity:0; pointer-events:none;
+  }
+  #engine-flash.flash{ animation:engine-flash .5s ease-out; }
+  @keyframes engine-flash{ 0%{ opacity:.85; } 100%{ opacity:0; } }
+  #engine-sparks{ position:absolute; inset:0; z-index:2; overflow:hidden; pointer-events:none; }
+  .spark-particle{
+    position:absolute; left:50%; top:50%; width:4px; height:4px; border-radius:50%;
+    background:#ffb347; box-shadow:0 0 8px #ff8a3d;
+    animation:spark-fly .8s ease-out forwards;
+  }
+  @keyframes spark-fly{
+    from{ transform:translate(-50%,-50%) translate(0,0) scale(1); opacity:1; }
+    to{ transform:translate(-50%,-50%) translate(var(--sx), var(--sy)) scale(.2); opacity:0; }
+  }
+  #engine-back-to-deck{
+    position:absolute; top:18px; left:18px; z-index:6;
+    background:none; border:1px solid var(--border); color:var(--text-dim);
+    border-radius:20px; padding:8px 14px; cursor:pointer; font-size:12px; font-family:inherit;
+  }
+  #engine-back-to-deck:hover{ color:var(--text); }
+  #engine-close{
+    position:absolute; top:18px; right:18px; z-index:6;
+    background:none; border:1px solid var(--border); color:var(--text-dim);
+    width:34px; height:34px; border-radius:50%; cursor:pointer; font-size:14px;
+  }
+  #engine-close:hover{ color:var(--text); }
+  #engine-scene{
+    position:relative; z-index:1; min-height:100vh; display:flex; flex-direction:column;
+    align-items:center; justify-content:center; gap:34px; padding:80px 20px 40px;
+  }
+  #reactor-core{
+    position:relative; width:min(52vw, 220px); height:min(52vw, 220px);
+  }
+  #reactor-glow{
+    position:absolute; inset:14%; border-radius:50%;
+    background:radial-gradient(circle, hsl(28 100% 68%), hsl(8 90% 45%) 55%, hsl(0 80% 22%) 100%);
+    box-shadow:0 0 50px rgba(255,120,40,.55), inset 0 0 30px rgba(0,0,0,.45);
+    animation:reactor-idle 3.4s ease-in-out infinite;
+  }
+  .reactor-ring{
+    position:absolute; inset:0; border-radius:50%;
+    border:2px dashed rgba(255,170,90,.4);
+    animation:reactor-spin 14s linear infinite;
+  }
+  @keyframes reactor-spin{ from{ transform:rotate(0deg); } to{ transform:rotate(360deg); } }
+  .reactor-ring.ring-b{ inset:8%; border-color:rgba(120,220,255,.35); animation-duration:9s; animation-direction:reverse; }
+  @keyframes reactor-idle{
+    0%,100%{ transform:scale(1); filter:brightness(1); }
+    50%{ transform:scale(1.03); filter:brightness(1.08); }
+  }
+  #reactor-core.running #reactor-glow{ animation-name:reactor-running; animation-duration:1.1s; }
+  #reactor-core.running .reactor-ring{ animation-duration:4s; }
+  #reactor-core.running .ring-b{ animation-duration:2.6s; }
+  @keyframes reactor-running{
+    0%,100%{ transform:scale(1); filter:brightness(1.05); }
+    50%{ transform:scale(1.09); filter:brightness(1.35); }
+  }
+  #reactor-core.redline #reactor-glow{
+    animation-name:reactor-redline; animation-duration:.25s;
+    background:radial-gradient(circle, #fff6e0, hsl(0 100% 55%) 50%, hsl(0 100% 30%) 100%);
+    box-shadow:0 0 90px rgba(255,60,20,.85), inset 0 0 40px rgba(0,0,0,.3);
+  }
+  #reactor-core.redline .reactor-ring{ animation-duration:.6s; border-color:rgba(255,200,120,.8); }
+  @keyframes reactor-redline{
+    0%,100%{ transform:scale(1.05); }
+    50%{ transform:scale(1.18); }
+  }
+  #engine-readout{
+    min-height:1.4em; font-size:12.5px; color:var(--text-dim); text-align:center;
+    letter-spacing:.03em;
+  }
+  #engine-readout.lit{ color:var(--new); }
+  #throttle-wrap{ display:flex; flex-direction:column; align-items:center; gap:10px; }
+  #throttle-label{ font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--text-dim); }
+  #throttle-lever{
+    position:relative; width:64px; height:120px; border-radius:16px;
+    background:linear-gradient(rgba(255,255,255,.04), rgba(255,255,255,.04)), var(--bg-panel);
+    border:1px solid var(--border); cursor:pointer; padding:0;
+  }
+  #throttle-handle{
+    position:absolute; left:50%; bottom:6px; width:44px; height:44px; border-radius:50%;
+    transform:translate(-50%,0);
+    background:radial-gradient(circle at 35% 30%, #ff6b5b, #b91c1c 70%);
+    box-shadow:0 0 16px rgba(220,40,20,.6);
+    transition:transform .18s ease-out;
+  }
+  #throttle-lever:active #throttle-handle, #throttle-lever.pulled #throttle-handle{
+    transform:translate(-50%,-62px);
+  }
+  @media (prefers-reduced-motion: reduce){
+    body:not(.motion-forced) #engine-overlay.shake{ animation:none !important; }
+    body:not(.motion-forced) .reactor-ring,
+    body:not(.motion-forced) #reactor-glow{ animation:none !important; }
+    body:not(.motion-forced) .spark-particle{ display:none; }
+  }
+
 </style>
 </head>
 <body>
@@ -536,7 +645,9 @@
         <span class="deck-room-name">Captain's Quarters</span>
       </button>
       <div class="deck-room dim"><span class="deck-room-name">Bridge</span></div>
-      <div class="deck-room dim"><span class="deck-room-name">Engine Room</span></div>
+      <button class="deck-room lit" id="room-engine-room">
+        <span class="deck-room-name">Engine Room</span>
+      </button>
       <div class="deck-room dim"><span class="deck-room-name">Cargo Bay</span></div>
     </div>
   </div>
@@ -549,6 +660,27 @@
   <button id="log-close" aria-label="Close">&#10005;</button>
   <div id="log-ticker">
     <div id="log-ticker-track"></div>
+  </div>
+</div>
+
+<div id="engine-overlay" class="hidden">
+  <div id="engine-flash"></div>
+  <div id="engine-sparks" aria-hidden="true"></div>
+  <button id="engine-back-to-deck" aria-label="Back to Deck Plan">&#8249; Deck Plan</button>
+  <button id="engine-close" aria-label="Close">&#10005;</button>
+  <div id="engine-scene">
+    <div id="reactor-core">
+      <div class="reactor-ring ring-a"></div>
+      <div class="reactor-ring ring-b"></div>
+      <div id="reactor-glow"></div>
+    </div>
+    <p id="engine-readout"></p>
+    <div id="throttle-wrap">
+      <span id="throttle-label">Pull for warp mix</span>
+      <button id="throttle-lever" aria-label="Pull the throttle lever">
+        <span id="throttle-handle"></span>
+      </button>
+    </div>
   </div>
 </div>
 
@@ -1503,6 +1635,8 @@
     $('#mp-playpause').setAttribute('aria-label', globalAudio.paused ? 'Play' : 'Pause');
     const btn = document.getElementById('detail-play-btn');
     if(btn) btn.textContent = playPauseLabelFor(btn.dataset.fileId);
+    const reactor = document.getElementById('reactor-core');
+    if(reactor) reactor.classList.toggle('running', !globalAudio.paused);
   }
   globalAudio.addEventListener('play', syncPlaybackUI);
   globalAudio.addEventListener('pause', syncPlaybackUI);
@@ -1684,9 +1818,86 @@
   $('#log-close').addEventListener('click', closeCaptainsLog);
   $('#log-overlay').addEventListener('click', (e) => { if(e.target.id === 'log-overlay') closeCaptainsLog(); });
 
+  /* ---- engine room ---- */
+  function openEngineRoom(){
+    $('#engine-overlay').classList.remove('hidden');
+    $('#reactor-core').classList.toggle('running', !globalAudio.paused);
+    $('#engine-readout').textContent = '';
+    $('#engine-readout').classList.remove('lit');
+  }
+  function closeEngineRoom(){
+    $('#engine-overlay').classList.add('hidden');
+  }
+  function spawnSparks(){
+    const layer = $('#engine-sparks');
+    const count = motionEnabled() ? 22 : 0;
+    for(let i = 0; i < count; i++){
+      const el = document.createElement('span');
+      el.className = 'spark-particle';
+      const angle = Math.random() * Math.PI * 2;
+      const dist = 60 + Math.random() * 160;
+      el.style.setProperty('--sx', Math.cos(angle) * dist + 'px');
+      el.style.setProperty('--sy', Math.sin(angle) * dist + 'px');
+      el.style.animationDelay = (Math.random() * 0.15) + 's';
+      layer.appendChild(el);
+      setTimeout(() => el.remove(), 1000);
+    }
+  }
+  async function pullThrottle(){
+    const lever = $('#throttle-lever');
+    lever.classList.add('pulled');
+    setTimeout(() => lever.classList.remove('pulled'), 220);
+
+    if(motionEnabled()){
+      $('#engine-overlay').classList.add('shake');
+      setTimeout(() => $('#engine-overlay').classList.remove('shake'), 400);
+      $('#engine-flash').classList.add('flash');
+      setTimeout(() => $('#engine-flash').classList.remove('flash'), 500);
+    }
+    spawnSparks();
+    const reactor = $('#reactor-core');
+    reactor.classList.add('redline');
+    setTimeout(() => reactor.classList.remove('redline'), 900);
+
+    const readout = $('#engine-readout');
+    readout.textContent = 'Charting a random course\u2026';
+    readout.classList.remove('lit');
+
+    try{
+      const systems = state.galaxy.systems.slice().sort(() => Math.random() - 0.5);
+      for(const sys of systems){
+        try{
+          await loadSystem(sys);
+        }catch(e){ continue; }
+        const playable = sys.planets.filter(p => p.audioFileId);
+        if(!playable.length) continue;
+        const planet = playable[Math.floor(Math.random() * playable.length)];
+        playTrack(planet.audioFileId, planet.name, sys.name);
+        readout.textContent = 'Now igniting: ' + planet.name + ' \u2014 ' + sys.name;
+        readout.classList.add('lit');
+        return;
+      }
+      readout.textContent = 'No mixes found to ignite yet.';
+    }catch(e){
+      readout.textContent = 'Something stalled in the reactor. Try again.';
+    }
+  }
+  $('#room-engine-room').addEventListener('click', () => {
+    closeDeckPlan();
+    openEngineRoom();
+  });
+  $('#engine-back-to-deck').addEventListener('click', () => {
+    closeEngineRoom();
+    openDeckPlan();
+  });
+  $('#engine-close').addEventListener('click', closeEngineRoom);
+  $('#engine-overlay').addEventListener('click', (e) => { if(e.target.id === 'engine-overlay') closeEngineRoom(); });
+  $('#throttle-lever').addEventListener('click', pullThrottle);
+
   document.addEventListener('keydown', (e) => {
     if(e.key !== 'Escape') return;
     if(!$('#log-overlay').classList.contains('hidden')) closeCaptainsLog();
+    else if(!$('#engine-overlay').classList.contains('hidden')) closeEngineRoom();
     else if(!$('#deck-plan-overlay').classList.contains('hidden')) closeDeckPlan();
     else if(!$('#detail-overlay').classList.contains('hidden')) closeDetail();
   });
