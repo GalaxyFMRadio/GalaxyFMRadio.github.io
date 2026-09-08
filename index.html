@@ -2273,17 +2273,28 @@
 
   /* ---- bridge (poetry room) ---- */
   const DEMO_POEMS = [
-    ['A demo poem \u2014', 'connect your Drive and add a poetry.txt file', 'to the root of your Galaxy folder', 'to broadcast real verses here.']
+    ['A demo poem \u2014', 'connect your Drive and add a poetry.txt file', 'to the root of your Galaxy folder', 'to broadcast real verses here.'],
+    ['A second demo poem \u2014', 'add a line that just says <warp>', 'between poems in your file', 'to mark where one ends and the next begins.']
   ];
-  // A single blank line (e.g. between a title and its body) stays inside
-  // the same poem; only a double blank line (two empty lines in a row)
-  // starts a new poem. Trailing spaces on an otherwise-blank line still
-  // count as blank.
+  // Blank lines are purely for your own readability in the file and are
+  // always ignored — they never split poems. The ONLY thing that starts
+  // a new poem is a line containing just <warp> by itself.
   function parsePoems(text){
-    const normalized = text.replace(/\r\n/g, '\n').replace(/[ \t]+\n/g, '\n');
-    return normalized.split(/\n{3,}/)
-      .map(block => block.split('\n').map(l => l.trim()).filter(Boolean))
-      .filter(lines => lines.length);
+    const normalized = text.replace(/\r\n?/g, '\n');
+    const lines = normalized.split('\n');
+    const poems = [];
+    let current = [];
+    for(const rawLine of lines){
+      const line = rawLine.trim();
+      if(/^<warp>$/i.test(line)){
+        if(current.length) poems.push(current);
+        current = [];
+        continue;
+      }
+      if(line) current.push(line);
+    }
+    if(current.length) poems.push(current);
+    return poems;
   }
   async function loadPoems(){
     if(state.poetry) return state.poetry;
