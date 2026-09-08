@@ -2275,8 +2275,13 @@
   const DEMO_POEMS = [
     ['A demo poem \u2014', 'connect your Drive and add a poetry.txt file', 'to the root of your Galaxy folder', 'to broadcast real verses here.']
   ];
+  // A single blank line (e.g. between a title and its body) stays inside
+  // the same poem; only a double blank line (two empty lines in a row)
+  // starts a new poem. Trailing spaces on an otherwise-blank line still
+  // count as blank.
   function parsePoems(text){
-    return text.split(/\n\s*\n+/)
+    const normalized = text.replace(/\r\n/g, '\n').replace(/[ \t]+\n/g, '\n');
+    return normalized.split(/\n{3,}/)
       .map(block => block.split('\n').map(l => l.trim()).filter(Boolean))
       .filter(lines => lines.length);
   }
