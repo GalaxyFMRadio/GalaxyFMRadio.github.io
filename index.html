@@ -100,6 +100,18 @@
   .featured-card .mini-planet-frame{ display:block; width:52px; height:52px; position:relative; }
   .featured-card .name{ font-size:11.5px; font-weight:600; text-align:center; line-height:1.25; }
   .featured-card .meta{ font-size:10px; color:var(--text-dim); text-align:center; }
+  #recent-discoveries-section{ margin-bottom:34px; }
+  #recent-discoveries-row{ display:flex; gap:14px; overflow-x:auto; padding-bottom:8px; }
+  .recent-card{
+    flex:0 0 auto; width:112px; display:flex; flex-direction:column; align-items:center; gap:6px;
+    background:var(--bg-panel); border:1px solid var(--border); border-radius:16px;
+    padding:16px 10px 12px; cursor:pointer;
+  }
+  .recent-card:hover, .recent-card:focus-visible{ border-color:var(--accent-2); outline:none; }
+  .recent-card .mini-planet-frame{ display:block; width:52px; height:52px; position:relative; }
+  .recent-card .name{ font-size:11.5px; font-weight:600; text-align:center; line-height:1.25; }
+  .recent-card .meta{ font-size:10px; color:var(--text-dim); text-align:center; }
+  .recent-card .date{ font-size:9.5px; color:var(--accent-2); text-align:center; letter-spacing:.03em; }
   .sun-card{
     background:var(--bg-panel); border:1px solid var(--border); border-radius:var(--radius-lg);
     padding:22px 16px 18px; text-align:center; cursor:pointer;
@@ -591,6 +603,10 @@
     <section id="captain-message-section" class="hidden">
       <h2 class="section-label">This Is Your Captain Speaking</h2>
       <div id="captain-message-box"></div>
+    </section>
+    <section id="recent-discoveries-section" class="hidden">
+      <h2 class="section-label">Recent Discoveries</h2>
+      <div id="recent-discoveries-row"></div>
     </section>
     <section id="featured-section" class="hidden">
       <h2 class="section-label">Priority Transmissions</h2>
@@ -2031,9 +2047,52 @@
         });
         renderDiscoveriesTicker();
         renderFeaturedSection();
+        renderRecentDiscoveries();
       }catch(e){ /* skip quietly */ }
       await new Promise(r => setTimeout(r, 150));
     }
+  }
+
+  function formatDiscoveryDate(iso){
+    if(!iso) return '';
+    const d = new Date(iso);
+    if(isNaN(d.getTime())) return '';
+    return d.toLocaleDateString(undefined, { month:'short', day:'numeric', year:'numeric' });
+  }
+
+  function renderRecentDiscoveries(){
+    const wrap = $('#recent-discoveries-section');
+    const row = $('#recent-discoveries-row');
+    const all = [];
+    state.galaxy.systems.forEach(sys => {
+      if(!sys.planetsLoaded) return;
+      sys.planets.forEach(p => {
+        if(p.createdTime) all.push({ planet:p, system:sys });
+      });
+    });
+    if(!all.length){ wrap.classList.add('hidden'); return; }
+    all.sort((a, b) => new Date(b.planet.createdTime) - new Date(a.planet.createdTime));
+    const top = all.slice(0, 3);
+    row.innerHTML = top.map((entry, i) => {
+      const p = entry.planet;
+      return '<button class="recent-card" data-idx="' + i + '">' +
+        '<span class="mini-planet-frame">' + planetVisualHTML(p.traits) + '</span>' +
+        '<span class="name">' + escapeHTML(p.name) + '</span>' +
+        '<span class="meta">' + escapeHTML(entry.system.name) + '</span>' +
+        '<span class="date">' + formatDiscoveryDate(p.createdTime) + '</span>' +
+        '</button>';
+    }).join('');
+    wrap.classList.remove('hidden');
+
+    row.querySelectorAll('.recent-card').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const entry = top[parseInt(btn.dataset.idx, 10)];
+        if(!entry) return;
+        closeDetail();
+        await enterSystem(entry.system);
+        openPlanetDetail(entry.planet);
+      });
+    });
   }
 
   function renderDiscoveriesTicker(){
@@ -2112,6 +2171,7 @@
         : 'Showing demo data. Add your Google Drive API key & folder ID in the CONFIG block (top of this file\u2019s source) to broadcast your real mixes.');
     }
     renderGalaxyView();
+    renderRecentDiscoveries();
     if(!state.galaxy.demo) setTimeout(backgroundScanForNew, 400);
   }
 
